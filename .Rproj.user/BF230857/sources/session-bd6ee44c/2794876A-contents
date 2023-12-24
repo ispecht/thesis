@@ -4,6 +4,11 @@ set.seed(211)
 library(ape)
 library(Rcpp)
 
+source("likelihood.R")
+source("moves.R")
+source("prior.R")
+source("subroutines.R")
+
 ## Filters
 filters <- list(
   af = 0.03,
@@ -146,7 +151,7 @@ mcmc$prior <- prior(mcmc)
 
 ### M-H algo
 liks <- c()
-N_iters <- 1e4
+N_iters <- 1e3
 for (r in 1:N_iters) {
   mcmc <- moves$w(mcmc, data)
   mcmc <- moves$t(mcmc, data)
