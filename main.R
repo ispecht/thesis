@@ -1,0 +1,193 @@
+### Execute large-scale outbreak reconstruction algorithm
+set.seed(211)
+## Libraries
+library(ape)
+library(Rcpp)
+
+## Filters
+filters <- list(
+  af = 0.03,
+  dp = 100,
+  sb = 10
+)
+
+## Data Processing
+
+# Load the reference sequence
+ref_genome <- read.FASTA("./input_data/ref.fasta")
+
+# Length of genome
+n_bases <- length(ref_genome[[1]])
+
+# Load the FASTA of sequences
+fasta <- read.FASTA("./input_data/aligned.fasta")
+
+# The first genome is itself the ref genome
+fasta <- c(ref_genome, fasta)
+
+# Number of samples
+n <- length(fasta)
+
+# Names of sequences
+names <- names(fasta)
+
+# VCF files present
+vcfs <- list.files("./input_data/vcf/")
+
+# Date
+date <- read.csv("input_data/date.csv")
+s <- c()
+for (i in 1:n) {
+  # Check if we have a VCF file
+  included <- grepl(names[i], date[,1])
+  if(sum(included) >= 2){
+    stop(paste("Multiple sample collection dates found for sequence", names[i]))
+  }else if(sum(included) == 1){
+    s[i] <- date[,2][included]
+  }else{
+    s[i] <- NA
+  }
+}
+
+## List of SNVs present per sample
+snvs <- list()
+for (i in 1:n) {
+  # Check if we have a VCF file
+  included <- grepl(names[i], vcfs)
+  if(sum(included) >= 2){
+    stop(paste("Multiple VCF files found for sequence", names[i]))
+  }else if(sum(included) == 1){
+    vcf <- read.table(paste0("./input_data/vcf/", vcfs[included]))
+    snvs[[i]] <- genetic_info(ref_genome[[1]], fasta[[i]], filters = filters, vcf = vcf)
+  }else{
+    snvs[[i]] <- genetic_info(ref_genome[[1]], fasta[[i]], filters = filters)
+  }
+}
+
+# Compile vectors of all positions with SNVs (may have duplicates) and all SNVs (unique)
+all_pos <- c()
+all_snv <- c()
+for (i in 1:n) {
+  calls <- snvs[[i]]$snv$call
+  new <- which(!(calls %in% all_snv))
+  all_snv <- c(all_snv, calls[new])
+  all_pos <- c(all_pos, snvs[[i]]$snv$pos[new])
+  if(!is.null(snvs[[i]]$isnv)){
+    calls <- snvs[[i]]$isnv$call
+    new <- which(!(calls %in% all_snv))
+    all_snv <- c(all_snv, calls[new])
+    all_pos <- c(all_pos, snvs[[i]]$isnv$pos[new])
+  }
+}
+
+# Remove irrelevant missing site info; add SNVs with missing data
+for (i in 1:n) {
+  # Which positions in all_pos are detected in the missing sites in the sample?
+  present <- which(all_pos %in% snvs[[i]]$missing$pos)
+  # Change missing$pos to be a vector of these sites (may have duplicates)
+  snvs[[i]]$missing$pos <- all_pos[present]
+  # Add a new vector of the SNVs for which there's no information
+  snvs[[i]]$missing$call <- all_snv[present]
+}
+
+### Initialize MCMC and data
+data <- list()
+data$s <- s
+data$N <- 10000 #population size
+data$n_obs <- n # number of observed hosts, plus 1 (index case)
+data$n_bases <- n_bases
+data$snvs <- snvs
+data$eps <- 0.005 # Explore/exploit tradeoff for genotypes of new nodes
+data$p_move <- 0.6
+
+mcmc <- list()
+mcmc$n <- n # number of tracked hosts
+mcmc$h <- rep(1, n) # ancestors; initialized to index case
+mcmc$w <- rep(0, n) # edge weights; initialized to 0
+mcmc$w[1] <- 0 # For convenience
+mcmc$h[1] <- NA
+mcmc$t <- s - 5 # time of contracting
+mcmc$m01 <- list() # fixed mutations added in each transmission link
+mcmc$m10 <- list() # fixed mutations deleted in each transmission link
+mcmc$m0y <- list() # 0% -> y%, 0 < y < 100
+mcmc$m1y <- list() # 100% -> y%, 0 < y < 100
+mcmc$mx0 <- list() # x% -> 0%, 0 < x < 100
+mcmc$mx1 <- list() # x% -> 100%, 0 < x < 100
+mcmc$mxy <- list() # x% -> y%, 0 < x < 100, 0 < y < 100
+for (i in 1:n) {
+  mcmc$m01[[i]] <- snvs[[i]]$snv$call
+  mcmc$m10[[i]] <- character(0)
+  mcmc$m0y[[i]] <- snvs[[i]]$isnv$call
+  mcmc$m1y[[i]] <- character(0)
+  mcmc$mx0[[i]] <- character(0)
+  mcmc$mx1[[i]] <- character(0)
+  mcmc$mxy[[i]] <- character(0)
+}
+
+mcmc$b <- 0.95 # Probability bottleneck has size 1
+mcmc$a_g <- 5 # shape parameter of the generation interval
+mcmc$lambda_g <- 1 # rate parameter of the generation interval. FOR NOW: fixing at 1.
+mcmc$a_s <- 5 # shape parameter of the sojourn interval
+mcmc$lambda_s <- 1 # rate parameter of the sojourn interval. FOR NOW: fixing at 1.
+mcmc$mu <- 1e-6 # mutation rate, sites/day
+mcmc$p <- 1e-6 # mutation rate, sites/cycle
+mcmc$v <- 1000 # burst size
+mcmc$rho <- 0.1 # first parameter, NBin offspring distribution (overdispersion param)
+mcmc$psi <- 0.1 / (2.5 + 0.1) # second parameter, NBin offspring distribution (computed in terms of R0)
+
+# Functions of MCMC params
+mcmc$d <- sapply(1:n, function(x){sum(mcmc$h[2:n] == x)}) # Node degrees
+
+# Also track the epidemiological and genomic likelihoods, and prior
+# The genomic likelihood we will store on a per-person basis, for efficiency purposes
+mcmc$e_lik <- e_lik(mcmc, data)
+mcmc$g_lik <- c(NA, sapply(2:n, g_lik, mcmc = mcmc, data = data))
+mcmc$prior <- prior(mcmc)
+
+### M-H algo
+liks <- c()
+N_iters <- 1e4
+for (r in 1:N_iters) {
+  mcmc <- moves$w(mcmc, data)
+  mcmc <- moves$t(mcmc, data)
+  mcmc <- moves$b(mcmc, data)
+  #mcmc <- moves$create_downstream(mcmc, data)
+  #mcmc <- moves$a_g(mcmc, data)
+  #mcmc <- moves$a_s(mcmc, data)
+  mcmc <- moves$mu(mcmc, data)
+  mcmc <- moves$p(mcmc, data)
+  mcmc <- moves$v(mcmc, data)
+  #mcmc <- moves$rho(mcmc, data)
+  #mcmc <- moves$psi(mcmc, data)
+  #print(mcmc$w)
+  #print(mcmc$b)
+  mcmc <- moves$h_step(mcmc, data, resample_t = T)
+  mcmc <- moves$genotype(mcmc, data)
+  #mcmc <- moves$create_upstream(mcmc, data)
+
+  mcmc <- moves$create(mcmc, data)
+
+  mcmc <- moves$w_t(mcmc, data)
+  mcmc <- moves$h_step(mcmc, data)
+  mcmc <- moves$swap(mcmc, data)
+
+  #print(mcmc$m10[[2]])
+
+  print(mcmc$h)
+  #print(which(mcmc$h == 9))
+
+  if(any(mcmc$d[2:mcmc$n] != sapply(2:mcmc$n, function(x){sum(mcmc$h == x, na.rm = T)}))){
+    stop("nooo")
+  }
+
+  liks <- c(liks, mcmc$e_lik + sum(mcmc$g_lik[2:mcmc$n]) + mcmc$prior)
+
+
+}
+
+#print(mcmc$g_lik)
+
+plot(liks[2000:10000])
+plot(liks)
+
+
