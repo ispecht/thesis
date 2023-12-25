@@ -1,8 +1,9 @@
 ### Execute large-scale outbreak reconstruction algorithm
-set.seed(211)
+set.seed(213)
 ## Libraries
 library(ape)
 library(Rcpp)
+library(igraph)
 
 source("likelihood.R")
 source("moves.R")
@@ -53,6 +54,7 @@ for (i in 1:n) {
     s[i] <- NA
   }
 }
+s[1] <- 0
 
 ## List of SNVs present per sample
 snvs <- list()
@@ -151,12 +153,12 @@ mcmc$prior <- prior(mcmc)
 
 ### M-H algo
 liks <- c()
-N_iters <- 1e3
+N_iters <- 1e6
+res <- list()
 for (r in 1:N_iters) {
   mcmc <- moves$w(mcmc, data)
   mcmc <- moves$t(mcmc, data)
   mcmc <- moves$b(mcmc, data)
-  #mcmc <- moves$create_downstream(mcmc, data)
   #mcmc <- moves$a_g(mcmc, data)
   #mcmc <- moves$a_s(mcmc, data)
   mcmc <- moves$mu(mcmc, data)
@@ -168,7 +170,6 @@ for (r in 1:N_iters) {
   #print(mcmc$b)
   mcmc <- moves$h_step(mcmc, data, resample_t = T)
   mcmc <- moves$genotype(mcmc, data)
-  #mcmc <- moves$create_upstream(mcmc, data)
 
   mcmc <- moves$create(mcmc, data)
 
@@ -176,23 +177,79 @@ for (r in 1:N_iters) {
   mcmc <- moves$h_step(mcmc, data)
   mcmc <- moves$swap(mcmc, data)
 
-  #print(mcmc$m10[[2]])
 
-  print(mcmc$h)
-  #print(which(mcmc$h == 9))
+  #print(mcmc$h)
 
-  if(any(mcmc$d[2:mcmc$n] != sapply(2:mcmc$n, function(x){sum(mcmc$h == x, na.rm = T)}))){
-    stop("nooo")
-  }
 
   liks <- c(liks, mcmc$e_lik + sum(mcmc$g_lik[2:mcmc$n]) + mcmc$prior)
+
+  if(r %% 100 == 0){
+    res <- c(res, list(mcmc))
+    print(paste(r, "iterations complete. Log-likelihood =", round(liks[r], 2)))
+  }
 
 
 }
 
 #print(mcmc$g_lik)
-
-plot(liks[2000:10000])
 plot(liks)
 
+## Diagnostics
+diagnostics <- list()
+diagnostics$n <- c()
+diagnostics$n_mut <- c() # Total number of mutations
+diagnostics$adj <- matrix(0, nrow = data$n_obs, ncol = data$n_obs)
+for (i in 1:length(res)) {
+  diagnostics$n[i] <- res[[i]]$n
+  diagnostics$n_mut[i] <- length(c(
+    unlist(res[[i]]$m01),
+    unlist(res[[i]]$m0y),
+    unlist(res[[i]]$m10),
+    unlist(res[[i]]$m1y)
+  ))
+
+}
+plot(diagnostics$n)
+plot(diagnostics$n_mut)
+
+## Idea for visualization / summary: for each unobserved node, get a list of which nodes are upstream.
+# Then take the MAP of the vector of ancestors concatenated with the vector of lists of upstream nodes.
+diagnostics$h <- list()
+diagnostics$adj <- matrix(0, nrow = max(diagnostics$n), ncol = max(diagnostics$n))
+for (i in 1:length(res)) {
+  h <- res[[i]]$h
+  if(res[[i]]$n > data$n_obs){
+    unobserved_anc <- which(h > data$n_obs)
+    unobs <- unique(h[unobserved_anc])
+    # Rename "unobs" as "sort(unobs)"
+    sorted <- sort(unobs)
+    h[unobserved_anc] <- sorted[match(h[unobserved_anc], unobs)]
+  }
+  diagnostics$h[[i]] <- h
+
+  diagnostics$adj[cbind(h[2:res[[i]]$n], 2:res[[i]]$n)] <- diagnostics$adj[cbind(h[2:res[[i]]$n], 2:res[[i]]$n)] + 1
+}
+diagnostics$adj <- diagnostics$adj / length(res)
+
+adj <- diagnostics$adj
+adj[adj < 0.25] <- 0
+
+g <- graph_from_adjacency_matrix(adj, mode = "directed", weighted = T)
+color <- rep("orange", length(V(g)))
+color[1:data$n_obs] <- "blue"
+plot(
+  g,
+  #vertex.label=NA,
+  vertex.label.cex = 0.3,
+  vertex.label.color = 'white',
+  vertex.label.family = 'sans',
+  vertex.size=4,
+  vertex.color = color,
+  vertex.frame.color = "#00000000",
+  edge.width=E(g)$weight*3,
+  edge.color = rgb(0,0,0,E(g)$weight),
+  edge.arrow.size = 0.5
+)
+
+#save(res, file = "res2.RData")
 

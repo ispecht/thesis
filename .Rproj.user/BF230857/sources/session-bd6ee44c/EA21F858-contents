@@ -419,12 +419,24 @@ accept_or_reject <- function(prop, mcmc, data, update, hastings){
 
   # Accept / reject
   if(log(runif(1)) < prop$e_lik + sum(prop$g_lik[-1]) + prop$prior - mcmc$e_lik - sum(mcmc$g_lik[-1]) - mcmc$prior + hastings){
-    print("yooooooo")
     return(prop)
   }else{
     return(mcmc)
   }
 }
+
+
+## Get list of all nodes upstream from a given node (including indirectly)
+# We can do this using recursion!
+get_upstream <- function(h, i){
+  out <- which(h == i)
+  for (j in out) {
+    out <- c(out, get_upstream(h, j))
+  }
+  return(out)
+}
+
+
 
 
 

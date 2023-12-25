@@ -3,7 +3,7 @@
     "path": "~/Desktop/thesis/moves.R",
     "project_path": "moves.R",
     "type": "r_source",
-    "hash": "1644701667",
+    "hash": "0",
     "contents": "",
     "dirty": false,
     "created": 1703398763791.0,
@@ -12,15 +12,15 @@
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "732,0",
-        "scrollLine": "705"
+        "cursorPosition": "4,51",
+        "scrollLine": "79"
     },
     "folds": "",
-    "lastKnownWriteTime": 1703398893,
+    "lastKnownWriteTime": 1703402006,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1703398893655,
+    "last_content_update": 1703402006674,
     "read_only": false,
     "read_only_alternatives": []
 }

@@ -483,7 +483,6 @@ moves$swap <- function(mcmc, data){
 
     # Accept / reject
     if(log(runif(1)) < prop$e_lik + sum(prop$g_lik[-1]) + prop$prior - mcmc$e_lik - sum(mcmc$g_lik[-1]) - mcmc$prior){
-      print("baste")
       return(prop)
     }else{
       return(mcmc)
