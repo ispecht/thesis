@@ -104,8 +104,8 @@ g_lik <- function(mcmc, data, i){
                 # Likelihood from 0 < x < 1, 0 < y < 1
                 length(mcmc$m1y[[i]]) * log_p_isnv +
                 sum(log(
-                  ((1/4 + (3/4)*exp(-mcmc$mu * delta_t))*(1 - freq_xy_anc) + (1/4 - (1/4)*exp(-mcmc$mu * delta_t))*freq_xy_anc) * denovo(freq_xy, mcmc$p) +
-                    ((1/4 + (3/4)*exp(-mcmc$mu * delta_t))*freq_xy_anc + (1/4 - (1/4)*exp(-mcmc$mu * delta_t))*(1 - freq_xy_anc)) * denovo(1 - freq_xy, mcmc$p) +
+                  ((1/4 + (3/4)*exp(-mcmc$mu * delta_t))*(1 - freq_xy_anc) + (1/4 - (1/4)*exp(-mcmc$mu * delta_t))*freq_xy_anc) * denovo(freq_xy, mcmc$p) * (1 - (mcmc$b^(mcmc$w[i] + 1) * 2 * freq_xy_anc * (1 - freq_xy_anc) / 3^mcmc$w[i])) +
+                    ((1/4 + (3/4)*exp(-mcmc$mu * delta_t))*freq_xy_anc + (1/4 - (1/4)*exp(-mcmc$mu * delta_t))*(1 - freq_xy_anc)) * denovo(1 - freq_xy, mcmc$p) * (1 - (mcmc$b^(mcmc$w[i] + 1) * 2 * freq_xy_anc * (1 - freq_xy_anc) / 3^mcmc$w[i])) +
                     (mcmc$b^(mcmc$w[i] + 1) * 2 * freq_xy_anc * (1 - freq_xy_anc) / 3^mcmc$w[i])
                 ))
             }

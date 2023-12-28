@@ -120,7 +120,7 @@ moves$w_t <- function(mcmc, data){
 moves$b <- function(mcmc, data){
   # Proposal
   prop <- mcmc
-  prop$b <- rnorm(1, mcmc$b, 0.01)
+  prop$b <- rnorm(1, mcmc$b, 0.1)
   prop$e_lik <- e_lik(prop, data)
   prop$g_lik[2:mcmc$n] <- sapply(2:mcmc$n, g_lik, mcmc = prop, data = data)
   prop$prior <- prior(prop)
@@ -241,7 +241,7 @@ moves$psi <- function(mcmc, data){
 }
 
 ## Update genotype at (a) missing sites in observed host, or (b) all sites in unobserved host
-
+#### May need to check hastings ratio here...
 moves$genotype <- function(mcmc, data){
 
   # Choose random host with ancestor
@@ -297,7 +297,7 @@ moves$genotype <- function(mcmc, data){
 ### Topological moves
 
 ## Move the ancestor of a node one step upstream (towards tips) or one step downstream (towards root) onto next/previous tracked host
-moves$h_step <- function(mcmc, data, resample_t = FALSE){
+moves$h_step <- function(mcmc, data, resample_t = FALSE, resample_w = FALSE){
   # Choose random host with ancestor
   i <- sample(2:mcmc$n, 1)
   h_old <- mcmc$h[i]
@@ -312,8 +312,11 @@ moves$h_step <- function(mcmc, data, resample_t = FALSE){
     # Who are the other children of h_old?
     children <- setdiff(which(mcmc$h == h_old), i)
 
-    # Which ones have a lesser edge weight?
-    children <- children[mcmc$w[children] < mcmc$w[i]]
+    # What's the maximum time at which i can be infected?
+    max_t <- get_max_t(mcmc, data, i)
+
+    # Which ones have a compatible time of infection?
+    children <- children[mcmc$t[children] < max_t]
 
     # If no valid children, reject
     # Also reject if h_old is not observed and has <= 2 total children, because then we can't remove one
@@ -324,53 +327,39 @@ moves$h_step <- function(mcmc, data, resample_t = FALSE){
       # Pick one
       h_new <- ifelse(length(children) == 1, children, sample(children, 1))
 
-      prop <- shift_upstream(prop, i, h_old, h_new)
+      prop <- shift_upstream(prop, data, i, h_old, h_new, resample_t, resample_w)
 
-      # What's the change in edge weight for i? (Negative)
-      change <- mcmc$w[h_new] + 1
+      # What's the change in edge weight for i?
+      change <- prop$w[i] - mcmc$w[i]
 
-      # Should we change the time of infection for i?
+      update <- i
+      # If updating t, need to also change genomic likelihood of children of i
       if(resample_t){
-        js <- which(prop$h == i)
-        if(length(js) > 0){
-          max_t <- min(prop$t[js])
-        }else{
-          max_t <- Inf
-        }
-        if(i <= data$n_obs){
-          max_t <- min(max_t, data$s[i])
-        }
-        if(prop$t[h_new] > max_t){
-          return(mcmc)
-        }else{
-          prop$t[i] <- runif(1, prop$t[h_new], max_t)
-        }
+        update <- c(update, which(mcmc$h == i))
       }
 
-
-      prop$e_lik <- e_lik(prop, data)
-      prop$g_lik[i] <- g_lik(prop, data, i)
-      if(resample_t){
-        if(length(js) > 0){
-          prop$g_lik[js] <- sapply(js, g_lik, mcmc = prop, data = data)
-        }
+      hastings <- 0
+      if(change < 0){
+        hastings <- hastings - lchoose(data$N, -change) - # P(new -> old): choose [change] people to add back onto the edge
+          (-lchoose(mcmc$w[i], -change)) # P(old -> new): choose [change] people to delete from the edge
       }
-      prop$prior <- prior(prop)
+      if(change > 0){
+        hastings <- hastings - lchoose(prop$w[i], change) - # P(new -> old): choose [change] people to delete from the edge
+          (-lchoose(data$N, change)) # P(old -> new): choose [change] people to add back onto the edge
+      }
 
-      hastings <- -lchoose(data$N, change) - # P(new -> old): choose [change] people to add back onto the edge
-        (-lchoose(mcmc$w[i], change)) + # P(old -> new): choose [change] people to delete from the edge
-        log(length(children)) # P(new -> old): 1; P(old -> new): choose from among #[children] people to be h_new
+      hastings <- hastings + log(length(children)) # P(new -> old): 1; P(old -> new): choose from among #[children] people to be h_new
 
       if(resample_t){
-        hastings <- hastings - log(max_t - prop$t[h_old]) + log(max_t - prop$t[h_new])
+        hastings <- hastings - log(max_t - mcmc$t[h_old]) + # P(new -> old): uniform draw of time of infection
+          log(max_t - prop$t[h_new]) # P(old -> new): uniform draw of time of infection
+      }
+      if(resample_w){ # Poisson draw for edge weights
+        hastings <- hastings + dpois(mcmc$w[i], (mcmc$t[i] - mcmc$t[h_old]) * mcmc$lambda_g / mcmc$a_g, log = T) -
+          dpois(prop$w[i], (prop$t[i] - prop$t[h_new]) * mcmc$lambda_g / mcmc$a_g, log = T)
       }
 
-      # Accept / reject
-      if(log(runif(1)) < prop$e_lik + sum(prop$g_lik[-1]) + prop$prior - mcmc$e_lik - sum(mcmc$g_lik[-1]) - mcmc$prior + hastings){
-        return(prop)
-      }else{
-        return(mcmc)
-      }
+      return(accept_or_reject(prop, mcmc, data, update, hastings))
 
     }
   }else{
@@ -383,60 +372,107 @@ moves$h_step <- function(mcmc, data, resample_t = FALSE){
       # New ancestor of i is ancestor's ancestor
       h_new <- mcmc$h[h_old]
 
-      prop <- shift_downstream(prop, i, h_old, h_new)
+      prop <- shift_downstream(prop, data, i, h_old, h_new, resample_t, resample_w)
 
       # What's the change in edge weight for i? (Positive)
       change <- mcmc$w[h_old] + 1
 
-      # Should we change the time of infection for i?
-      if(resample_t){
-        js <- which(prop$h == i)
-        if(length(js) > 0){
-          max_t <- min(prop$t[js])
-        }else{
-          max_t <- Inf
-        }
-        if(i <= data$n_obs){
-          max_t <- min(max_t, data$s[i])
-        }
-        if(prop$t[h_new] > max_t){
-          return(mcmc)
-        }else{
-          prop$t[i] <- runif(1, prop$t[h_new], max_t)
-        }
-      }
-
-      prop$e_lik <- e_lik(prop, data)
-      prop$g_lik[i] <- g_lik(prop, data, i)
-      if(resample_t){
-        if(length(js) > 0){
-          prop$g_lik[js] <- sapply(js, g_lik, mcmc = prop, data = data)
-        }
-      }
-      prop$prior <- prior(prop)
-
       ## Compute the number of possible children who could be chosen by i in the new config
-
       # Who are the other children of h_old?
       children <- setdiff(which(prop$h == h_new), i)
 
-      # Which ones have a lesser edge weight?
-      children <- children[prop$w[children] < prop$w[i]]
+      # What's the maximum time at which i can be infected?
+      max_t <- get_max_t(mcmc, data, i)
 
-      hastings <- -lchoose(prop$w[i], change) - # P(new -> old): choose [change] people to delete from the edge
-        (-lchoose(data$N, change)) - # P(old -> new): choose [change] people to add back onto the edge
-        log(length(children)) # P(new -> old): choose from among #[children] people to be h_new; P(old -> new): 1
+      # Which ones have a lesser time of infection than max_t?
+      children <- children[prop$t[children] < max_t]
+
+      # What's the change in edge weight for i?
+      change <- prop$w[i] - mcmc$w[i]
+
+      update <- i
+      # If updating t, need to also change genomic likelihood of children of i
+      if(resample_t){
+        update <- c(update, which(mcmc$h == i))
+      }
+
+      hastings <- 0
+      if(change < 0){
+        hastings <- hastings - lchoose(data$N, -change) - # P(new -> old): choose [change] people to add back onto the edge
+          (-lchoose(mcmc$w[i], -change)) # P(old -> new): choose [change] people to delete from the edge
+      }
+      if(change > 0){
+        hastings <- hastings - lchoose(prop$w[i], change) - # P(new -> old): choose [change] people to delete from the edge
+          (-lchoose(data$N, change)) # P(old -> new): choose [change] people to add back onto the edge
+      }
+
+      hastings <- hastings - log(length(children)) # P(new -> old): choose from among #[children] people to be h_new; P(old -> new): 1
 
       if(resample_t){
-        hastings <- hastings - log(max_t - prop$t[h_old]) + log(max_t - prop$t[h_new])
+        hastings <- hastings - log(max_t - mcmc$t[h_old]) + # P(new -> old): uniform draw of time of infection
+          log(max_t - prop$t[h_new]) # P(old -> new): uniform draw of time of infection
+      }
+      if(resample_w){ # Poisson draw for edge weights
+        hastings <- hastings + dpois(mcmc$w[i], (mcmc$t[i] - mcmc$t[h_old]) * mcmc$lambda_g / mcmc$a_g, log = T) -
+          dpois(prop$w[i], (prop$t[i] - prop$t[h_new]) * mcmc$lambda_g / mcmc$a_g, log = T)
       }
 
-      # Accept / reject
-      if(log(runif(1)) < prop$e_lik + sum(prop$g_lik[-1]) + prop$prior - mcmc$e_lik - sum(mcmc$g_lik[-1]) - mcmc$prior + hastings){
-        return(prop)
-      }else{
-        return(mcmc)
+      return(accept_or_reject(prop, mcmc, data, update, hastings))
+    }
+  }
+}
+
+## Global change in ancestor
+# Importance sampling based on other nodes with similar additions / deletions
+moves$h_global <- function(mcmc, data){
+  # Sample any node with ancestor
+  i <- sample(2:mcmc$n, 1)
+  h_old <- mcmc$h[i]
+
+  # Nodes which are infected earlier than i
+  choices <- which(mcmc$t < mcmc$t[i])
+
+  if(length(choices) == 0 | (h_old > data$n_obs & mcmc$d[h_old] <= 2)){
+    return(mcmc)
+  }else{
+
+    # "Score" the choices: shared iSNV = +1
+    scores <- softmax(sapply(choices, score, mcmc=mcmc, i=i), data$tau)
+
+    h_new <- ifelse(length(choices) == 1, choices, sample(choices, 1, prob = scores))
+
+    # Find the path from h_old to h_new
+    route <- paths(mcmc$h, h_old, h_new)
+    down <- route[[1]]
+    up <- route[[2]]
+
+    prop <- mcmc
+
+    # If length of down < 2, don't need to do anything
+    if(length(down) >= 2){
+      for (j in 2:length(down)) {
+        prop <- shift_downstream(prop, data, i, down[j-1], down[j])
       }
+    }
+    if(length(up) >= 2){
+      for (j in 2:length(up)) {
+        prop <- shift_upstream(prop, data, i, up[j-1], up[j])
+      }
+    }
+
+    prop$e_lik <- e_lik(prop, data)
+    update <- i
+    prop$g_lik[update] <- sapply(update, g_lik, mcmc = prop, data = data)
+    prop$prior <- prior(prop)
+
+    rev_scores <- softmax(sapply(choices, score, mcmc=prop, i=i), data$tau)
+    hastings <- log(rev_scores[which(choices == h_old)]) - log(scores[which(choices == h_new)])
+
+    if(log(runif(1)) < prop$e_lik + sum(prop$g_lik[-1]) + prop$prior - mcmc$e_lik - sum(mcmc$g_lik[-1]) - mcmc$prior + hastings){
+      #print("way to go!")
+      return(prop)
+    }else{
+      return(mcmc)
     }
   }
 }
@@ -444,48 +480,74 @@ moves$h_step <- function(mcmc, data, resample_t = FALSE){
 ## The swap
 ## Switch h -> i -> j to
 ## h -> j -> i
-moves$swap <- function(mcmc, data){
-  # Choose host with a child and a parent
-  # If unobserved, i must have at least 3 children, because losing one
-  choices <- union(which(mcmc$d >= 3), which(mcmc$d[1:data$n_obs] >= 1))
-  choices <- setdiff(choices, 1)
+moves$swap <- function(mcmc, data, exchange_children = FALSE){
+  # Choose host with a parent and a grandparent
+  choices <- which(mcmc$h != 1)
 
   if(length(choices) == 0){
     return(mcmc)
   }else{
-    # Pick i
-    i <- ifelse(length(choices) == 1, choices, sample(choices, 1))
-
-    # Pick h
-    h <- mcmc$h[i]
-
     # Pick j
-    children_i <- which(mcmc$h == i)
-    j <- ifelse(length(children_i) == 1, children_i, sample(children_i, 1))
+    j <- ifelse(length(choices) == 1, choices, sample(choices, 1))
 
-    children_i <- setdiff(children_i, j)
-    children_j <- which(mcmc$h == j)
+    # Pick i
+    i <- mcmc$h[j]
 
-    # Update the state
-    prop <- mcmc
-    prop <- shift_downstream(prop, j, i, h) # Shift j from i onto h
-    prop <- shift_upstream(prop, i, h, j) # Shift i from h onto j
-    prop$w[j] <- mcmc$w[i] # Swapping edge weights
-    prop$t[j] <- mcmc$t[i] # Swapping time of infection
-    prop$w[i] <- mcmc$w[j]
-    prop$t[i] <- mcmc$t[j]
+    # For exchange_children = FALSE
+    # If i unobserved, i must have at least 3 children, because losing one
+    # For exchange_children = TRUE
+    # If i unobserved, j must have at least 2 children
+    # If j unobserved, i must have at least 2 children (including j)
 
-
-    prop$e_lik <- e_lik(prop, data)
-    update <- c(i, j, children_i, children_j) # For which hosts must we update the genomic likelihood?
-    prop$g_lik[update] <- sapply(update, g_lik, mcmc = prop, data = data)
-    prop$prior <- prior(prop)
-
-    # Accept / reject
-    if(log(runif(1)) < prop$e_lik + sum(prop$g_lik[-1]) + prop$prior - mcmc$e_lik - sum(mcmc$g_lik[-1]) - mcmc$prior){
-      return(prop)
-    }else{
+    if(
+      (exchange_children == F & i > data$n_obs & mcmc$d[i] < 3) |
+      (exchange_children == T & i > data$n_obs & mcmc$d[j] < 2) |
+      (exchange_children == T & j > data$n_obs & mcmc$d[i] < 2)
+    ){
       return(mcmc)
+    }else{
+      # Pick h
+      h <- mcmc$h[i]
+
+      # Children of each
+      children_i <- setdiff(which(mcmc$h == i), j)
+      children_j <- which(mcmc$h == j)
+
+      # Update the state
+      prop <- mcmc
+      prop <- shift_downstream(prop, data, j, i, h) # Shift j from i onto h
+      prop <- shift_upstream(prop, data, i, h, j) # Shift i from h onto j
+      prop$w[j] <- mcmc$w[i] # Swapping edge weights
+      prop$w[i] <- mcmc$w[j]
+      prop$t[j] <- mcmc$t[i] # Swapping time of infection
+      prop$t[i] <- mcmc$t[j]
+
+      if(exchange_children){
+        for (k in children_i) {
+          prop <- shift_downstream(prop, data, k, i, j)
+          prop$w[k] <- mcmc$w[k] # Keep edge weight the same
+        }
+        for (k in children_j) {
+          prop <- shift_upstream(prop, data, k, j, i)
+          prop$w[k] <- mcmc$w[k] # Keep edge weight the same
+        }
+      }
+
+
+      prop$e_lik <- e_lik(prop, data)
+      update <- c(i, j, children_i, children_j) # For which hosts must we update the genomic likelihood?
+      prop$g_lik[update] <- sapply(update, g_lik, mcmc = prop, data = data)
+      prop$prior <- prior(prop)
+
+      # Accept / reject
+      if(log(runif(1)) < prop$e_lik + sum(prop$g_lik[-1]) + prop$prior - mcmc$e_lik - sum(mcmc$g_lik[-1]) - mcmc$prior){
+        # if(exchange_children){
+        #   print("BASED")
+        # }
+        return(prop)
+      }else{
+        return(mcmc)
+      }
     }
   }
 }
@@ -526,7 +588,7 @@ moves$create <- function(mcmc, data){
       j2s <- kids[runif(length(kids)) < data$p_move]
 
       # If moving nobody, or moving everyone upstream off an unobserved node, or moving all but 0 or 1 downstream off an unobserved node, reject
-      if(length(j2s) == 0 | (upstream & h > data$n_obs & length(j2s) == length(kids)) | (!upstream & h > data$n_obs & length(j2s) >= length(kids) - 1)){
+      if(length(j2s) == 0 | (upstream & h > data$n_obs & length(j2s) == length(kids)) | (!upstream & j1 > data$n_obs & length(j2s) >= length(kids) - 1)){
         return(mcmc)
       }else{
         js <- c(j1, j2s)
@@ -577,12 +639,12 @@ moves$create <- function(mcmc, data){
           ## Move all js onto i
           if(upstream){
             for (j in js) {
-              prop <- shift_upstream(prop, j, h, i)
+              prop <- shift_upstream(prop, data, j, h, i)
             }
           }else{
-            prop <- shift_upstream(prop, j1, h, i)
+            prop <- shift_upstream(prop, data, j1, h, i)
             for (j2 in j2s) {
-              prop <- shift_downstream(prop, j2, j1, i)
+              prop <- shift_downstream(prop, data, j2, j1, i)
             }
           }
 
@@ -641,14 +703,14 @@ moves$create <- function(mcmc, data){
         # Put all children of i onto h or j1
         if(upstream){
           for (j in js) {
-            prop <- shift_downstream(prop, j, i, h)
+            prop <- shift_downstream(prop, data, j, i, h)
           }
         }else{
           for (j2 in j2s) {
-            prop <- shift_upstream(prop, j2, i, j1)
+            prop <- shift_upstream(prop, data, j2, i, j1)
           }
           # Put j1 onto h
-          prop <- shift_downstream(prop, j1, i, h)
+          prop <- shift_downstream(prop, data, j1, i, h)
         }
         # Degree of h still needs to decrease by 1, because of deletion of i
         prop$d[h] <- prop$d[h] - 1

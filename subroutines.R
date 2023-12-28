@@ -97,6 +97,38 @@ genetic_info <- function(seq1, seq2, filters, vcf = NULL){
 
 }
 
+# Convert adjacency matrix to ancestry vector
+adj_to_anc <- function(adj, i, h = NULL){
+  if(is.null(h)){
+    h <- rep(0, ncol(adj))
+    h[1] <- NA
+  }
+  children <- which(adj[i,] == 1 & h == 0)
+  h[children] <- i
+  for (j in children) {
+    h <- adj_to_anc(adj, j, h)
+  }
+  return(h)
+}
+
+# Get the ancestry of a single node, down to the root
+ancestry <- function(h, i){
+  if(is.na(h[i])){
+    return(i)
+  }else{
+    return(c(ancestry(h, h[i]), i))
+  }
+}
+
+# Get the generations of an ancestor vector
+generations <- function(h, i){
+  if(length(which(h %in% i)) == 0){
+    return(list(i))
+  }else{
+    return(c(list(i), generations(h, which(h %in% i))))
+  }
+}
+
 # Distribution of de novo iSNVs
 denovo <- function(x, p, log = FALSE){
   k <- 1/sqrt(p)
@@ -106,6 +138,39 @@ denovo <- function(x, p, log = FALSE){
     (1-(1-x)^k * (1 + k*x)) / (k*x^2)
   }
 }
+
+## Maximum time of infection for a host i
+get_max_t <- function(mcmc, data, i){
+  ts <- mcmc$t[which(mcmc$h == i)]
+  if(i <= data$n_obs){
+    ts <- c(ts, data$s[i])
+  }
+  return(min(ts))
+}
+
+## Softmax function, used for choosing arbitrary new ancestors
+softmax <- function(v, tau){
+  exp(v/tau) / sum(exp(v/tau))
+}
+
+## Score function: approximates the utility of attaching i to j in terms of parsimony
+score <- function(mcmc, i, j){
+  sum(mcmc$m01[[i]] %in% union(mcmc$m01[[j]], mcmc$m0x[[j]])) +
+    sum(mcmc$m10[[i]] %in% union(mcmc$m10[[j]], mcmc$m1x[[j]])) +
+    sum(union(mcmc$m0y[[i]], mcmc$m1y[[i]]) %in% union(mcmc$m0y[[j]], mcmc$m1y[[j]]))
+}
+
+## Path from i to j, going down then up
+paths <- function(h, i, j){
+  anc_i <- ancestry(h, i)
+  anc_j <- ancestry(h, j)
+  overlap <- length(intersect(anc_i, anc_j))
+  return(list(
+    rev(anc_i[overlap:length(anc_i)]),
+    anc_j[overlap:length(anc_j)]
+  ))
+}
+
 
 # Update genetics for the following topological move:
 # From g -> i, g -> h
@@ -163,19 +228,6 @@ update_genetics_upstream <- function(prop, mcmc, i, h){
 
   # Whew.
   return(prop)
-}
-
-# Wrap as a function: switch from
-# h_old -> i, h_old -> h_new to
-# h_old -> h_new -> i
-shift_upstream <- function(mcmc, i, h_old, h_new){
-  # Update all necessary components of MCMC
-  mcmc$h[i] <- h_new # Update the ancestor
-  mcmc$w[i] <- mcmc$w[i] - mcmc$w[h_new] - 1
-  mcmc <- update_genetics_upstream(mcmc, mcmc, i, h_new) # Update genetics. i is inheriting from h_new.
-  mcmc$d[h_old] <- mcmc$d[h_old] - 1
-  mcmc$d[h_new] <- mcmc$d[h_new] + 1
-  return(mcmc)
 }
 
 # Update genetics for the following topological move:
@@ -237,12 +289,43 @@ update_genetics_downstream <- function(prop, mcmc, i, h){
 }
 
 # Wrap as a function: switch from
-# h_new -> h_old -> i
-# h_old -> i, h_new -> i
-shift_downstream <- function(mcmc, i, h_old, h_new){
+# h_old -> i, h_old -> h_new to
+# h_old -> h_new -> i
+shift_upstream <- function(mcmc, data, i, h_old, h_new, resample_t = FALSE, resample_w = FALSE){
   # Update all necessary components of MCMC
   mcmc$h[i] <- h_new # Update the ancestor
-  mcmc$w[i] <- mcmc$w[i] + mcmc$w[h_old] + 1
+  if(resample_t){
+    max_t <- get_max_t(mcmc, data, i)
+    min_t <- mcmc$t[h_new]
+    mcmc$t[i] <- runif(1, min_t, max_t)
+  }
+  if(resample_w){
+    mcmc$w[i] <- rpois(1, (mcmc$t[i] - mcmc$t[h_new]) * mcmc$lambda_g / mcmc$a_g) # Biased sample, but hopefully good enough
+  }else{
+    mcmc$w[i] <- mcmc$w[i] - mcmc$w[h_new] - 1
+  }
+  mcmc <- update_genetics_upstream(mcmc, mcmc, i, h_new) # Update genetics. i is inheriting from h_new.
+  mcmc$d[h_old] <- mcmc$d[h_old] - 1
+  mcmc$d[h_new] <- mcmc$d[h_new] + 1
+  return(mcmc)
+}
+
+# Wrap as a function: switch from
+# h_new -> h_old -> i
+# h_old -> i, h_new -> i
+shift_downstream <- function(mcmc, data, i, h_old, h_new, resample_t = FALSE, resample_w = FALSE){
+  # Update all necessary components of MCMC
+  mcmc$h[i] <- h_new # Update the ancestor
+  if(resample_t){
+    max_t <- get_max_t(mcmc, data, i)
+    min_t <- mcmc$t[h_new]
+    mcmc$t[i] <- runif(1, min_t, max_t)
+  }
+  if(resample_w){
+    mcmc$w[i] <- rpois(1, (mcmc$t[i] - mcmc$t[h_new]) * mcmc$lambda_g / mcmc$a_g) # Biased sample, but hopefully good enough
+  }else{
+    mcmc$w[i] <- mcmc$w[i] + mcmc$w[h_old] + 1
+  }
   mcmc <- update_genetics_downstream(mcmc, mcmc, i, h_old) # Update genetics. i is inheriting from h_new, but compared to genetics of h_old
   mcmc$d[h_old] <- mcmc$d[h_old] - 1
   mcmc$d[h_new] <- mcmc$d[h_new] + 1
@@ -412,13 +495,14 @@ genotype <- function(mcmc, i, js, eps, comparison = F){
 }
 
 # Accept / reject
-accept_or_reject <- function(prop, mcmc, data, update, hastings){
+accept_or_reject <- function(prop, mcmc, data, update, hastings = 0){
   prop$e_lik <- e_lik(prop, data)
   prop$g_lik[update] <- sapply(update, g_lik, mcmc = prop, data = data)
   prop$prior <- prior(prop)
 
   # Accept / reject
   if(log(runif(1)) < prop$e_lik + sum(prop$g_lik[-1]) + prop$prior - mcmc$e_lik - sum(mcmc$g_lik[-1]) - mcmc$prior + hastings){
+    #print("coo-ee")
     return(prop)
   }else{
     return(mcmc)
@@ -436,6 +520,25 @@ get_upstream <- function(h, i){
   return(out)
 }
 
+## Plot current ancestry
+plot_current <- function(h, n_obs){
+  n <- length(h)
+  vertices <- data.frame(name = 1:n)
+  edges <- as.data.frame(cbind(paste(h[2:n]), paste(2:n)))
+  colnames(edges) <- c('from', 'to')
+  g <- graph_from_data_frame(edges)
+  colors <- rep('black', n)
+  colors[1:n > n_obs] <- 'gray'
+  p <- ggraph(edges, layout = 'dendrogram', circular = T) +
+    geom_edge_elbow() +
+    geom_node_point(aes(color = as.numeric(name) > n_obs), size = 5) +
+    geom_node_text(aes(label=name), size=2.5, color = 'white') +
+    scale_color_manual(values = c("black", "gray")) +
+    theme_graph() +
+    coord_fixed() +
+    theme(legend.position = 'none')
+  p
+}
 
 
 

@@ -4,6 +4,8 @@ set.seed(213)
 library(ape)
 library(Rcpp)
 library(igraph)
+library(ggraph)
+library(gganimate)
 
 source("likelihood.R")
 source("moves.R")
@@ -16,6 +18,7 @@ filters <- list(
   dp = 100,
   sb = 10
 )
+init_mst <- F
 
 ## Data Processing
 
@@ -98,6 +101,14 @@ for (i in 1:n) {
 }
 
 ### Initialize MCMC and data
+
+## For MCMC initialization: minimum spanning tree
+if(init_mst){
+  snv_dist <- ape::dist.dna(fasta, "N", as.matrix = T)
+  tree <- ape::mst(snv_dist)
+  init_h <- adj_to_anc(tree, 1)
+}
+
 data <- list()
 data$s <- s
 data$N <- 10000 #population size
@@ -106,6 +117,7 @@ data$n_bases <- n_bases
 data$snvs <- snvs
 data$eps <- 0.005 # Explore/exploit tradeoff for genotypes of new nodes
 data$p_move <- 0.6
+data$tau = 0.2
 
 mcmc <- list()
 mcmc$n <- n # number of tracked hosts
@@ -131,6 +143,26 @@ for (i in 1:n) {
   mcmc$mxy[[i]] <- character(0)
 }
 
+if(init_mst){
+  gens <- generations(init_h, 1)
+  max_t <- min(s[2:n] - 5)
+  for (g in 2:length(gens)) {
+    for (i in gens[[g]]) {
+
+      if(g >= 3){
+        anc <- ancestry(init_h, i)
+        for (j in 2:(length(anc) - 1)) {
+          mcmc <- update_genetics_upstream(mcmc, mcmc, i, anc[j])
+          mcmc$m01[[j]] <- setdiff(mcmc$m01[[j]], snvs[[j]]$missing$call) # Remove calls for missing positions
+          mcmc$m10[[j]] <- setdiff(mcmc$m10[[j]], snvs[[j]]$missing$call)
+        }
+      }
+      mcmc$t[i] <- max_t - 5*(length(gens) - g)
+    }
+  }
+  mcmc$h <- init_h
+}
+
 mcmc$b <- 0.95 # Probability bottleneck has size 1
 mcmc$a_g <- 5 # shape parameter of the generation interval
 mcmc$lambda_g <- 1 # rate parameter of the generation interval. FOR NOW: fixing at 1.
@@ -153,7 +185,7 @@ mcmc$prior <- prior(mcmc)
 
 ### M-H algo
 liks <- c()
-N_iters <- 1e6
+N_iters <- 1000
 res <- list()
 for (r in 1:N_iters) {
   mcmc <- moves$w(mcmc, data)
@@ -168,17 +200,32 @@ for (r in 1:N_iters) {
   #mcmc <- moves$psi(mcmc, data)
   #print(mcmc$w)
   #print(mcmc$b)
+  mcmc <- moves$swap(mcmc, data, exchange_children = T)
   mcmc <- moves$h_step(mcmc, data, resample_t = T)
   mcmc <- moves$genotype(mcmc, data)
-
+  mcmc <- moves$h_global(mcmc, data)
   mcmc <- moves$create(mcmc, data)
 
   mcmc <- moves$w_t(mcmc, data)
   mcmc <- moves$h_step(mcmc, data)
   mcmc <- moves$swap(mcmc, data)
+  mcmc <- moves$h_step(mcmc, data, resample_t = T, resample_w = T)
+
+  if(mcmc$n > data$n_obs){
+    if(any(mcmc$d[(data$n_obs + 1):mcmc$n] < 2)){
+      print(r)
+    }
+  }
 
 
-  #print(mcmc$h)
+  # print(mcmc$h)
+  # print(length(c(
+  #   unlist(mcmc$m01),
+  #   unlist(mcmc$m0y),
+  #   unlist(mcmc$m10),
+  #   unlist(mcmc$m1y)
+  # )))
+  #print(mcmc$b)
 
 
   liks <- c(liks, mcmc$e_lik + sum(mcmc$g_lik[2:mcmc$n]) + mcmc$prior)
@@ -186,6 +233,7 @@ for (r in 1:N_iters) {
   if(r %% 100 == 0){
     res <- c(res, list(mcmc))
     print(paste(r, "iterations complete. Log-likelihood =", round(liks[r], 2)))
+    #print(plot_current(mcmc$h, data$n_obs))
   }
 
 
@@ -193,6 +241,7 @@ for (r in 1:N_iters) {
 
 #print(mcmc$g_lik)
 plot(liks)
+plot(liks[50000:100000])
 
 ## Diagnostics
 diagnostics <- list()
@@ -211,6 +260,7 @@ for (i in 1:length(res)) {
 }
 plot(diagnostics$n)
 plot(diagnostics$n_mut)
+plot(diagnostics$n_mut[300:1000])
 
 ## Idea for visualization / summary: for each unobserved node, get a list of which nodes are upstream.
 # Then take the MAP of the vector of ancestors concatenated with the vector of lists of upstream nodes.
@@ -227,12 +277,14 @@ for (i in 1:length(res)) {
   }
   diagnostics$h[[i]] <- h
 
-  diagnostics$adj[cbind(h[2:res[[i]]$n], 2:res[[i]]$n)] <- diagnostics$adj[cbind(h[2:res[[i]]$n], 2:res[[i]]$n)] + 1
+  if(i > 0){
+    diagnostics$adj[cbind(h[2:res[[i]]$n], 2:res[[i]]$n)] <- diagnostics$adj[cbind(h[2:res[[i]]$n], 2:res[[i]]$n)] + 1
+  }
 }
 diagnostics$adj <- diagnostics$adj / length(res)
 
 adj <- diagnostics$adj
-adj[adj < 0.25] <- 0
+adj[adj < 0.05] <- 0
 
 g <- graph_from_adjacency_matrix(adj, mode = "directed", weighted = T)
 color <- rep("orange", length(V(g)))
@@ -240,7 +292,7 @@ color[1:data$n_obs] <- "blue"
 plot(
   g,
   #vertex.label=NA,
-  vertex.label.cex = 0.3,
+  vertex.label.cex = 0.4,
   vertex.label.color = 'white',
   vertex.label.family = 'sans',
   vertex.size=4,
@@ -251,5 +303,7 @@ plot(
   edge.arrow.size = 0.5
 )
 
-#save(res, file = "res2.RData")
+#save(res, file = "res_12-28.RData")
+
+
 
