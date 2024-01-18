@@ -108,7 +108,7 @@ initialize <- function(){
   data$tau = 0.2
   data$n_cores <- parallel::detectCores()
   # Number of subtrees to chop into is n_cores, as long as each subtree has at least 100 people
-  data$n_subtrees <- min(data$n_cores, floor(n / 100))
+  data$n_subtrees <- max(min(data$n_cores, floor(n / 100)), 1)
   data$n_global <- 50 # Number of global moves
   data$n_local <- 100 # Number of local moves per global move
   data$sample_every <- 100 # Per how many local moves do we draw one sample?

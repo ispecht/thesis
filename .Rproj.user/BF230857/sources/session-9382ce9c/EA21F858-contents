@@ -554,9 +554,10 @@ chop <- function(mcmc, data){
       # Not allowed to choose "1", else the algo will end too early
       prob[1] <- 0
 
-      # Also, something that makes our lives much easier: only allow observed hosts to be roots
+      # Also, something that makes our lives much easier: only allow observed hosts with observed parents to be roots
       if(n > data$n_obs){
         prob[(data$n_obs):n] <- 0
+        prob[which(mcmc$h > data$n_obs)] <- 0
       }
 
       pick <- sample(1:n, 1, prob = prob)

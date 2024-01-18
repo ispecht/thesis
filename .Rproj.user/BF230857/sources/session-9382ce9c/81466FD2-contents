@@ -60,7 +60,6 @@ amalgamate <- function(all_res, mcmcs, data){
       for (j in 1:n_subtrees) {
         roots[j] <- all_res[[j]][[i]]$root
         anc <- all_res[[j]][[i]]$h[all_res[[j]][[i]]$root]
-
         if(is.na(anc)){
           anc_clusters[j] <- NA
         }else{
