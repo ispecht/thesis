@@ -2,14 +2,25 @@
 
 moves <- list()
 
-## Update one of the w_i's by adding or subtracting rounded N(0,3)
+## Update one of the w_i's by adding or subtracting either:
+# rounded N(0, sqrt(delta_t * lambda_g / a_g))  (strategic) OR
+# N(0, 3) (random)
 moves$w <- function(mcmc, data){
   # Choose random host with ancestor
-  i <- sample(2:mcmc$n, 1)
+  i <- sample(mcmc$cluster, 1)
+  h <- mcmc$h[i]
+
+  delta_t <- mcmc$t[i] - mcmc$t[h]
 
   # Proposal
   prop <- mcmc
-  change <- round(rnorm(1, 0, 3))
+
+  if(delta_t > 50){
+    change <- round(rnorm(1, 0, sqrt(delta_t * mcmc$lambda_g / mcmc$a_g)))
+  }else{
+    change <- round(rnorm(1, 0, 3))
+  }
+
   prop$w[i] <- mcmc$w[i] + change
 
   prop$e_lik <- e_lik(prop, data)
@@ -41,7 +52,7 @@ moves$w <- function(mcmc, data){
 ## Update one of the t_i's using a N(0,1) proposal density if observed; N(0, 10) if not
 moves$t <- function(mcmc, data){
   # Choose random host with ancestor
-  i <- sample(2:mcmc$n, 1)
+  i <- sample(mcmc$cluster, 1)
   # Proposal
   prop <- mcmc
   prop$t[i] <- rnorm(1, mcmc$t[i], ifelse(i <= data$n_obs, 1, 10))
@@ -60,7 +71,7 @@ moves$t <- function(mcmc, data){
 ## Update t_i and w_i and w_j's simultaneously, where j is the child of i
 moves$w_t <- function(mcmc, data){
   # Choose random host with ancestor and children
-  choices <- intersect(2:mcmc$n, which(mcmc$d > 0))
+  choices <- mcmc$cluster[which(mcmc$d[mcmc$cluster] > 0)]
   if(length(choices) == 0){
     return(mcmc)
   }else{
@@ -245,7 +256,7 @@ moves$psi <- function(mcmc, data){
 moves$genotype <- function(mcmc, data){
 
   # Choose random host with ancestor
-  i <- sample(2:mcmc$n, 1)
+  i <- sample(mcmc$cluster, 1)
   js <- which(mcmc$h == i) # Children
   # Let h denote the ancestor of i; never used in computations
 
@@ -299,7 +310,7 @@ moves$genotype <- function(mcmc, data){
 ## Move the ancestor of a node one step upstream (towards tips) or one step downstream (towards root) onto next/previous tracked host
 moves$h_step <- function(mcmc, data, resample_t = FALSE, resample_w = FALSE){
   # Choose random host with ancestor
-  i <- sample(2:mcmc$n, 1)
+  i <- sample(mcmc$cluster, 1)
   h_old <- mcmc$h[i]
 
   # Proposal
@@ -317,6 +328,9 @@ moves$h_step <- function(mcmc, data, resample_t = FALSE, resample_w = FALSE){
 
     # Which ones have a compatible time of infection?
     children <- children[mcmc$t[children] < max_t]
+
+    # Children must be in the same cluster
+    children <- children[children %in% mcmc$cluster]
 
     # If no valid children, reject
     # Also reject if h_old is not observed and has <= 2 total children, because then we can't remove one
@@ -363,7 +377,7 @@ moves$h_step <- function(mcmc, data, resample_t = FALSE, resample_w = FALSE){
 
     }
   }else{
-    if(h_old == 1 | (h_old > data$n_obs & length(which(mcmc$h == h_old)) <= 2)){
+    if(h_old == mcmc$root | (h_old > data$n_obs & length(which(mcmc$h == h_old)) <= 2)){
       # If no downstream move, reject
       # Also reject if h_old is not observed and has <= 2 total children, because then we can't remove one
       return(mcmc)
@@ -386,6 +400,9 @@ moves$h_step <- function(mcmc, data, resample_t = FALSE, resample_w = FALSE){
 
       # Which ones have a lesser time of infection than max_t?
       children <- children[prop$t[children] < max_t]
+
+      # Children must be in the same cluster
+      children <- children[children %in% mcmc$cluster]
 
       # What's the change in edge weight for i?
       change <- prop$w[i] - mcmc$w[i]
@@ -426,11 +443,11 @@ moves$h_step <- function(mcmc, data, resample_t = FALSE, resample_w = FALSE){
 # Importance sampling based on other nodes with similar additions / deletions
 moves$h_global <- function(mcmc, data){
   # Sample any node with ancestor
-  i <- sample(2:mcmc$n, 1)
+  i <- sample(mcmc$cluster, 1)
   h_old <- mcmc$h[i]
 
   # Nodes which are infected earlier than i
-  choices <- which(mcmc$t < mcmc$t[i])
+  choices <- c(mcmc$root, mcmc$cluster)[which(mcmc$t[c(mcmc$root, mcmc$cluster)] < mcmc$t[i])]
 
   if(length(choices) == 0 | (h_old > data$n_obs & mcmc$d[h_old] <= 2)){
     return(mcmc)
@@ -482,7 +499,7 @@ moves$h_global <- function(mcmc, data){
 ## h -> j -> i
 moves$swap <- function(mcmc, data, exchange_children = FALSE){
   # Choose host with a parent and a grandparent
-  choices <- which(mcmc$h != 1)
+  choices <- mcmc$cluster[which(mcmc$h[mcmc$cluster] != mcmc$root)]
 
   if(length(choices) == 0){
     return(mcmc)
@@ -571,7 +588,7 @@ moves$create <- function(mcmc, data){
 
   if(create){
     # Pick any node with an ancestor. (Note, some choices impossible, but this is okay!)
-    j1 <- sample(2:mcmc$n, 1)
+    j1 <- sample(mcmc$cluster, 1)
     h <- mcmc$h[j1]
 
     if(mcmc$w[j1] == 0 | (upstream & mcmc$d[h] == 1) | (!upstream & mcmc$d[j1] == 0)){
@@ -624,6 +641,7 @@ moves$create <- function(mcmc, data){
           prop$t[i] <- mcmc$t[h] + (max_t - mcmc$t[h]) * rbeta(1, dist + 1, max_dist - dist + 1) # Weighted average
           prop$d[i] <- 0
           prop$d[h] <- mcmc$d[h] + 1
+          prop$cluster <- c(mcmc$cluster, i)
 
           ## Initialize genotype for i. This is all changing, so we initialize as i loses all iSNVs to 0. Everything else stays the same
           prop$mx0[[i]] <- unique(c(
@@ -684,7 +702,7 @@ moves$create <- function(mcmc, data){
     }
   }else{
     ## Delete a node by tucking it back inside its parent / child
-    choices <- which(mcmc$h > data$n_obs)
+    choices <- mcmc$cluster[which(mcmc$h[mcmc$cluster] > data$n_obs & mcmc$h[mcmc$cluster] != mcmc$root)]
     if(length(choices) == 0){
       return(mcmc)
     }else{
@@ -779,6 +797,13 @@ moves$create <- function(mcmc, data){
         prop$mxy <- prop$mxy[-i]
         prop$d <- prop$d[-i]
         prop$g_lik <- prop$g_lik[-i]
+        prop$cluster <- setdiff(prop$cluster, i) # Delete i, then shift everyone bigger down by 1
+        prop$cluster[which(prop$cluster > i)] <-  prop$cluster[which(prop$cluster > i)] - 1
+        # If the root is above i, slide down 1. This shouldn't happen...
+        if(prop$root > i){
+          prop$root <- prop$root - 1
+          print("uh oh")
+        }
 
         # Update the js
         js[js > i] <- js[js > i] - 1

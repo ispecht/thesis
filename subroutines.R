@@ -520,6 +520,64 @@ get_upstream <- function(h, i){
   return(out)
 }
 
+## Efficiently compute total number of upstream nodes for each node (including self)
+total_degree <- function(h){
+  n <- length(h)
+  out <- rep(NA, length(h))
+  frontier <- which(!(1:n %in% h))
+
+  while (length(frontier) > 0) {
+    out[frontier] <- sapply(frontier, function(x){sum(out[which(h == x)])}) + 1
+    # Nodes whose children all have non-NA values
+    if(any(is.na(out))){
+      frontier <- which(is.na(out))[sapply(which(is.na(out)), function(x){!any(is.na(out[which(h == x)]))})]
+    }else{
+      frontier <- integer(0)
+    }
+  }
+
+  return(out)
+}
+
+# Chop tree into roughly equally sized pieces
+chop <- function(mcmc, data){
+  n <- length(mcmc$h)
+  out <- list()
+  roots <- c()
+  deg <- total_degree(mcmc$h)
+
+  if(data$n_subtrees > 1){
+    for (i in 1:(data$n_subtrees - 1)) {
+      # On average, a branch should have n/data$n_subtrees nodes
+      prob <- dbinom(deg, n, 1/data$n_subtrees)
+
+      # Not allowed to choose "1", else the algo will end too early
+      prob[1] <- 0
+
+      # Also, something that makes our lives much easier: only allow observed hosts to be roots
+      if(n > data$n_obs){
+        prob[(data$n_obs):n] <- 0
+      }
+
+      pick <- sample(1:n, 1, prob = prob)
+      anc <- ancestry(mcmc$h, pick)
+      deg[anc] <- deg[anc] - deg[pick]
+      ups <- get_upstream(mcmc$h, pick)
+      ups <- setdiff(ups, c(unlist(out), roots))
+      deg[ups] <- 0
+      out[[i]] <- ups
+      roots[i] <- pick
+    }
+  }
+
+
+  out[[data$n_subtrees]] <- setdiff(2:n, c(unlist(out), roots))
+  roots[data$n_subtrees] <- 1
+
+  return(list(roots, out))
+}
+
+
 ## Plot current ancestry
 plot_current <- function(h, n_obs){
   n <- length(h)
