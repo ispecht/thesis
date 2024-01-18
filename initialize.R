@@ -1,12 +1,23 @@
 # Initialize mcmc (current state of the markov chain) and data
-initialize <- function(){
+initialize <- function(
+    n_subtrees = max(min(parallel::detectCores(), floor(n / 100)), 1),
+    n_global = 50, # Number of global moves
+    n_local = 100, # Number of local moves per global move
+    sample_every = 100, # Per how many local moves do we draw one sample?
+    init_mst = FALSE, # Should we initialize to a minimum spanning tree? Bad idea if dataset is large
+    init_ancestry = NULL, # Specify the starting ancestry
+    filters = NULL
+){
+
   ## Filters
-  filters <- list(
-    af = 0.03,
-    dp = 100,
-    sb = 10
-  )
-  init_mst <- F
+  if(is.null(filters)){
+    filters <- list(
+      af = 0.03,
+      dp = 100,
+      sb = 10
+    )
+  }
+
 
   ## Data Processing
 
@@ -24,6 +35,11 @@ initialize <- function(){
 
   # Number of samples
   n <- length(fasta)
+
+  # Prevent MST initialization when dataset is large
+  if(init_mst & n > 1000){
+    stop("Dataset is too large to use init_mst = TRUE. Specify a strating configuration by using init_ancestry, or initialize to a star-shaped configuration by setting init_mst = FALSE.")
+  }
 
   # Names of sequences
   names <- names(fasta)
@@ -106,12 +122,12 @@ initialize <- function(){
   data$eps <- 0.005 # Explore/exploit tradeoff for genotypes of new nodes
   data$p_move <- 0.6
   data$tau = 0.2
-  data$n_cores <- parallel::detectCores()
+  #data$n_cores <-
   # Number of subtrees to chop into is n_cores, as long as each subtree has at least 100 people
-  data$n_subtrees <- max(min(data$n_cores, floor(n / 100)), 1)
-  data$n_global <- 50 # Number of global moves
-  data$n_local <- 100 # Number of local moves per global move
-  data$sample_every <- 100 # Per how many local moves do we draw one sample?
+  data$n_subtrees <- n_subtrees
+  data$n_global <- n_global
+  data$n_local <- n_local
+  data$sample_every <- sample_every
   #data$n_subtrees <- 3
 
   mcmc <- list()
