@@ -1,26 +1,26 @@
 {
-    "id": "01F18EE6",
-    "path": "~/Desktop/thesis/moves.R",
-    "project_path": "moves.R",
+    "id": "DE4502FA",
+    "path": "~/Desktop/thesis/main.R",
+    "project_path": "main.R",
     "type": "r_source",
     "hash": "0",
     "contents": "",
     "dirty": false,
-    "created": 1703398763791.0,
+    "created": 1705714204532.0,
     "source_on_save": false,
-    "relative_order": 4,
+    "relative_order": 2,
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "124,5",
-        "scrollLine": "157"
+        "cursorPosition": "82,3",
+        "scrollLine": "63"
     },
     "folds": "",
-    "lastKnownWriteTime": 1705617168,
+    "lastKnownWriteTime": 1705713889,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1705617168920,
+    "last_content_update": 1705713889,
     "read_only": false,
     "read_only_alternatives": []
 }
