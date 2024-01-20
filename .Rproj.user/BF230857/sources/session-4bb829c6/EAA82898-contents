@@ -13,8 +13,8 @@ local_mcmc <- function(mcmc, data){
   for (r in 1:data$n_local) {
     mcmc <- moves$w(mcmc, data)
     mcmc <- moves$t(mcmc, data)
-    # Unhash line below when running on VM
-    mcmc <- moves$swap(mcmc, data, exchange_children = T)
+    # Unhash when running on VM
+    #mcmc <- moves$swap(mcmc, data, exchange_children = T)
     mcmc <- moves$h_step(mcmc, data, resample_t = T)
     mcmc <- moves$genotype(mcmc, data)
     #
@@ -26,7 +26,7 @@ local_mcmc <- function(mcmc, data){
     mcmc <- moves$swap(mcmc, data)
     mcmc <- moves$h_step(mcmc, data, resample_t = T, resample_w = T)
 
-    if(r %% data$sample_every == 0){
+    if(r %% 100 == 0){
       res <- c(res, list(mcmc))
     }
 

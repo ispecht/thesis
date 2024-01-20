@@ -57,8 +57,12 @@ for (r in 1:data$n_global) {
   # Amalgamate results of parallel MCMC run
   amalgam <- amalgamate(all_res, mcmcs, datas, mcmc, data)
 
-  # Record amalgamated results
-  output <- c(output, amalgam)
+  # Record amalgamated results, filtering to parameters of interest
+  for (i in 1:length(amalgam)) {
+    output <- c(output, list(
+      amalgam[[i]][data$record]
+    ))
+  }
 
   # "mcmc" is now the most recent result
   mcmc <- amalgam[[length(amalgam)]]
