@@ -19,16 +19,17 @@ global_mcmc <- function(mcmc, data){
 breakdown <- function(mcmc, data){
 
   subtrees <- chop(mcmc, data)
+  n_subtrees <- length(subtrees[[1]])
   mcmcs <- list()
   datas <- list()
-  for (i in 1:data$n_subtrees) {
+  for (i in 1:n_subtrees) {
     mcmcs[[i]] <- mcmc
     mcmcs[[i]]$root <- subtrees[[1]][i]
     mcmcs[[i]]$cluster <- subtrees[[2]][[i]]
     if(mcmcs[[i]]$root == 1){
       mcmcs[[i]]$anc_cluster <- NA
     }else{
-      for (j in 1:data$n_subtrees) {
+      for (j in 1:n_subtrees) {
         if(mcmcs[[i]]$root %in% c(subtrees[[1]][j], subtrees[[2]][[j]])){
           mcmcs[[i]]$anc_cluster <- j
         }

@@ -548,63 +548,63 @@ total_degree <- function(h, d){
   return(out)
 }
 
-# Chop tree into roughly equally sized pieces
+# BFS traversal of tree
+bfs <- function(i, h){
+  out <- i
+  frontier <- which(h == i)
+  while (length(frontier) > 0) {
+    out <- c(out, frontier)
+    frontier <- which(h %in% frontier)
+  }
+  return(out)
+}
+
 chop <- function(mcmc, data){
-  n <- length(mcmc$h)
-  out <- list()
+
+  # Initial tree (will change)
+  h <- mcmc$h
+
+  # Traverse the tree in reverse-BFS order
+  ord <- rev(bfs(1, h))
+
+  # Minimum number of nodes per subtree
+  lambda <- mcmc$n / data$n_subtrees
+
+  # Tree outputs (not including roots)
+  trees <- list()
+
+  # Root outputs
   roots <- c()
-  deg <- total_degree(mcmc$h, mcmc$d)
 
-  if(data$n_subtrees > 1){
-    for (i in 1:(data$n_subtrees - 1)) {
-      # On average, a branch should have n/data$n_subtrees nodes
-      prob <- rep(0,n)
-      prob[deg > 0.7*n/data$n_subtrees & deg < 1.3*n/data$n_subtrees] <- 1 # Everything close to n/data$n_subtrees gets probability 1
+  # All upstream nodes, not including self
+  w <- rep(list(integer(0)), mcmc$n)
 
-      # Not allowed to choose "1", else the algo will end too early
-      prob[1] <- 0
+  for (v in ord) {
+    if(v == 1){
+      # Update upstream nodes of vertex v
+      w[[v]] <- c(w[[v]], which(h == v), unlist(w[which(h == v)]))
 
-      # Also, something that makes our lives much easier: only allow observed hosts with observed parents to be roots
-      if(n > data$n_obs){
-        prob[(data$n_obs):n] <- 0
-        prob[which(mcmc$h > data$n_obs)] <- 0
+      trees <- c(trees, list(sort(w[[v]])))
+      roots <- c(roots, v)
+    }else{
+      # Update upstream nodes of vertex v
+      w[[v]] <- c(w[[v]], which(h == v), unlist(w[which(h == v)]))
+
+      # If weight is large enough, hack off a piece of the tree
+      if(length(w[[v]]) >= lambda){
+        trees <- c(trees, list(sort(w[[v]])))
+        roots <- c(roots, v)
+
+        # Delete nodes from tree, except root
+        h[w[[v]]] <- NA
+
+        # Reset upstream nodes of root to nothing
+        w[[v]] <- integer(0)
       }
-
-      # If everything is 0, just pick the one closest to the target value
-      if(all(prob == 0)){
-        dists <- abs(n/data$n_subtrees - deg)
-        dists[1] <- Inf
-        if(n > data$n_obs){
-          dists[(data$n_obs):n] <- Inf
-          dists[which(mcmc$h > data$n_obs)] <- Inf
-        }
-        pick <- which.min(dists)
-      }else{
-        pick <- sample(1:n, 1, prob = prob)
-      }
-
-      anc <- ancestry(mcmc$h, pick)
-      deg[anc] <- deg[anc] - deg[pick]
-
-      ups <- get_upstream(mcmc$h, pick)
-      ups <- setdiff(ups, unlist(out))
-
-      deg[ups] <- 0
-      out[[i]] <- sort(ups)
-
-
-      # Set the ancestor of "ups" to a dummy, to save compute time on "get_upstream"
-      mcmc$h[ups] <- 0
-      roots[i] <- pick
-      #print(i)
     }
   }
 
-
-  out[[data$n_subtrees]] <- sort(setdiff(2:n, unlist(out)))
-  roots[data$n_subtrees] <- 1
-
-  return(list(roots, out))
+  return(list(roots, trees))
 }
 
 

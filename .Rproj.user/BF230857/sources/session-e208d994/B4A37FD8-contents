@@ -521,62 +521,94 @@ get_upstream <- function(h, i){
 }
 
 ## Efficiently compute total number of upstream nodes for each node (including self)
-total_degree <- function(h){
+total_degree <- function(h, d){
   n <- length(h)
-  out <- rep(NA, length(h))
-  frontier <- which(!(1:n %in% h))
+  out <- rep(1, length(h))
+  frontier <- which(d == 0)
 
-  while (length(frontier) > 0) {
-    out[frontier] <- sapply(frontier, function(x){sum(out[which(h == x)])}) + 1
-    # Nodes whose children all have non-NA values
-    if(any(is.na(out))){
-      frontier <- which(is.na(out))[sapply(which(is.na(out)), function(x){!any(is.na(out[which(h == x)]))})]
-    }else{
-      frontier <- integer(0)
+  while (length(frontier) > 0 & !identical(frontier, 1)) {
+    new_frontier <- c()
+    for (i in frontier) {
+      out[h[i]] <- out[h[i]] + out[i] # Back up degree into parent
+      d[h[i]] <- d[h[i]] - 1 # Prune child
+      if(d[h[i]] == 0){
+        if(!is.na(h[i])){
+          new_frontier <- c(new_frontier, h[i])
+        }
+      }
+    }
+    frontier <- new_frontier
+    if(length(frontier) == 1){
+      if(frontier == 1){
+        frontier <- integer(0)
+      }
     }
   }
 
   return(out)
 }
 
-# Chop tree into roughly equally sized pieces
+# BFS traversal of tree
+bfs <- function(i, h){
+  out <- i
+  frontier <- which(h == i)
+  while (length(frontier) > 0) {
+    out <- c(out, frontier)
+    frontier <- which(h %in% frontier)
+  }
+  return(out)
+}
+
 chop <- function(mcmc, data){
-  n <- length(mcmc$h)
-  out <- list()
+
+  # Initial tree (will change)
+  h <- mcmc$h
+
+  # Traverse the tree in reverse-BFS order
+  ord <- rev(bfs(1, h))
+
+  # Minimum number of nodes per subtree
+  lambda <- mcmc$n / data$n_subtrees
+
+  # Tree outputs (not including roots)
+  trees <- list()
+
+  # Root outputs
   roots <- c()
-  deg <- total_degree(mcmc$h)
 
-  if(data$n_subtrees > 1){
-    for (i in 1:(data$n_subtrees - 1)) {
-      # On average, a branch should have n/data$n_subtrees nodes
-      prob <- dbinom(deg, n, 1/data$n_subtrees)
+  # All upstream nodes, not including self
+  w <- rep(list(integer(0)), mcmc$n)
 
-      # Not allowed to choose "1", else the algo will end too early
-      prob[1] <- 0
+  for (v in ord) {
+    if(v == 1){
+      # Update upstream nodes of vertex v
+      w[[v]] <- c(w[[v]], which(h == v), unlist(w[which(h == v)]))
 
-      # Also, something that makes our lives much easier: only allow observed hosts with observed parents to be roots
-      if(n > data$n_obs){
-        prob[(data$n_obs):n] <- 0
-        prob[which(mcmc$h > data$n_obs)] <- 0
+      trees <- c(trees, list(sort(w[[v]])))
+      roots <- c(roots, v)
+    }else{
+      # Update upstream nodes of vertex v
+      w[[v]] <- c(w[[v]], which(h == v), unlist(w[which(h == v)]))
+
+      # If weight is large enough, hack off a piece of the tree
+      if(length(w[[v]]) >= lambda){
+        trees <- c(trees, list(sort(w[[v]])))
+        roots <- c(roots, v)
+
+        # Delete nodes from tree, except root
+        h[w[[v]]] <- NA
+
+        # Reset upstream nodes of root to nothing
+        w[[v]] <- integer(0)
       }
-
-      pick <- sample(1:n, 1, prob = prob)
-      anc <- ancestry(mcmc$h, pick)
-      deg[anc] <- deg[anc] - deg[pick]
-      ups <- get_upstream(mcmc$h, pick)
-      ups <- setdiff(ups, c(unlist(out), roots))
-      deg[ups] <- 0
-      out[[i]] <- ups
-      roots[i] <- pick
     }
   }
 
-
-  out[[data$n_subtrees]] <- setdiff(2:n, c(unlist(out), roots))
-  roots[data$n_subtrees] <- 1
-
-  return(list(roots, out))
+  return(list(roots, trees))
 }
+
+
+
 
 
 ## Plot current ancestry

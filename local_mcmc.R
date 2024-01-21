@@ -45,7 +45,7 @@ amalgamate <- function(all_res, mcmcs, datas, mcmc, data){
   n_samples <- length(all_res[[1]])
 
   # Number of subtrees
-  n_subtrees <- datas[[1]]$n_subtrees
+  n_subtrees <- length(mcmcs)
 
 
   # If we didn't break up the tree, nothing to do here!

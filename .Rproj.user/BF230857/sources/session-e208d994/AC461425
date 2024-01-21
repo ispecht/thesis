@@ -1,26 +1,26 @@
 {
-    "id": "B4A37FD8",
-    "path": "~/Desktop/thesis/subroutines.R",
-    "project_path": "subroutines.R",
+    "id": "AC461425",
+    "path": "~/Desktop/thesis/main.R",
+    "project_path": "main.R",
     "type": "r_source",
     "hash": "0",
     "contents": "",
     "dirty": false,
-    "created": 1705687282880.0,
+    "created": 1705642405158.0,
     "source_on_save": false,
-    "relative_order": 6,
+    "relative_order": 2,
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "550,0",
-        "scrollLine": "531"
+        "cursorPosition": "84,5",
+        "scrollLine": "60"
     },
     "folds": "",
-    "lastKnownWriteTime": 1705714116,
+    "lastKnownWriteTime": 1705864341,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1705714116575,
+    "last_content_update": 1705864341344,
     "read_only": false,
     "read_only_alternatives": []
 }

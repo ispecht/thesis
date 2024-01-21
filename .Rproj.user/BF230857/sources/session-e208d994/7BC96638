@@ -1,27 +1,27 @@
 {
-    "id": "03E8A90C",
-    "path": "~/Desktop/thesis/global_mcmc.R",
-    "project_path": "global_mcmc.R",
+    "id": "7BC96638",
+    "path": "~/Desktop/thesis/local_mcmc.R",
+    "project_path": "local_mcmc.R",
     "type": "r_source",
     "hash": "0",
     "contents": "",
     "dirty": false,
-    "created": 1705687065731.0,
+    "created": 1705688123995.0,
     "source_on_save": false,
-    "relative_order": 4,
+    "relative_order": 3,
     "properties": {
         "tempName": "Untitled1",
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "20,29",
-        "scrollLine": "13"
+        "cursorPosition": "64,25",
+        "scrollLine": "51"
     },
     "folds": "",
-    "lastKnownWriteTime": 1705696498,
+    "lastKnownWriteTime": 1705864301,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1705696498379,
+    "last_content_update": 1705864301771,
     "read_only": false,
     "read_only_alternatives": []
 }
