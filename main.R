@@ -3,8 +3,8 @@ set.seed(213)
 ## Libraries
 library(ape)
 library(Rcpp)
-library(igraph)
-library(ggraph)
+#library(igraph)
+#library(ggraph)
 library(parallel)
 
 source("likelihood.R")
@@ -17,15 +17,15 @@ source("local_mcmc.R")
 
 ## Unhash these for regular run
 
-#init <- initialize()
+init <- initialize()
 
-#mcmc <- init[[1]]
-#data <- init[[2]]
+mcmc <- init[[1]]
+data <- init[[2]]
 
 ## Unhash these for run on pre-computed data and initial MCMC
 
-load("data.RData")
-load("mcmc.RData")
+#load("data.RData")
+#load("mcmc.RData")
 
 ### M-H algo
 output <- list()
@@ -41,6 +41,8 @@ for (r in 1:data$n_global) {
   breakdowns <- breakdown(mcmc, data)
   mcmcs <- breakdowns[[1]]
   datas <- breakdowns[[2]]
+
+  message(paste("Parallelizing over", length(mcmcs), "cores..."))
 
   # Run MCMC in parallel over each subtree
   all_res <- parallel::mclapply(
@@ -76,7 +78,7 @@ for (r in 1:data$n_global) {
   liks <- c(liks, mcmc$e_lik + sum(mcmc$g_lik[2:mcmc$n]) + mcmc$prior)
 
 
-  print(paste(r * data$n_local * data$n_subtrees, "iterations complete. Log-likelihood =", round(liks[r], 2)))
+  message(paste(r, "global iterations complete. Log-likelihood =", round(liks[r], 2)))
   #print(plot_current(mcmc$h, data$n_obs))
   #print(mcmc$w)
 

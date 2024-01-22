@@ -564,6 +564,9 @@ chop <- function(mcmc, data){
   # Initial tree (will change)
   h <- mcmc$h
 
+  # Node degrees
+  d <- mcmc$d
+
   # Traverse the tree in reverse-BFS order
   ord <- rev(bfs(1, h))
 
@@ -577,35 +580,48 @@ chop <- function(mcmc, data){
   roots <- c()
 
   # All upstream nodes, not including self
-  w <- rep(list(integer(0)), mcmc$n)
+  w <- rep(0, mcmc$n)
 
   for (v in ord) {
     if(v == 1){
-      # Update upstream nodes of vertex v
-      w[[v]] <- c(w[[v]], which(h == v), unlist(w[which(h == v)]))
 
-      trees <- c(trees, list(sort(w[[v]])))
+      sub <- bfs(v, h)
+
+      trees <- c(trees, list(sort(sub[-1])))
       roots <- c(roots, v)
     }else{
-      # Update upstream nodes of vertex v
-      w[[v]] <- c(w[[v]], which(h == v), unlist(w[which(h == v)]))
+      # Update number of upstream nodes of vertex v
+      if(d[v] > 0){
+        kids <- which(h == v)
+        if(length(kids) > 0){
+          w[v] <- w[v] + length(kids) + sum(w[kids])
+        }
+      }
+      # If weight is large enough, and root is observed, hack off a piece of the tree
+      if(
+        w[v] >= lambda &
+        v <= data$n_obs
+      ){
+        if(mcmc$n - length(unlist(trees)) - w[v] >= lambda){
 
-      # If weight is large enough, hack off a piece of the tree
-      if(length(w[[v]]) >= lambda){
-        trees <- c(trees, list(sort(w[[v]])))
-        roots <- c(roots, v)
+          sub <- bfs(v, h)
 
-        # Delete nodes from tree, except root
-        h[w[[v]]] <- NA
+          trees <- c(trees, list(sort(sub[-1])))
+          roots <- c(roots, v)
 
-        # Reset upstream nodes of root to nothing
-        w[[v]] <- integer(0)
+          # Delete nodes from tree, except root
+          h[kids] <- NA
+
+          # Reset upstream nodes of root to nothing
+          w[v] <- 0
+        }
       }
     }
   }
 
   return(list(roots, trees))
 }
+
 
 
 
