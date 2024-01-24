@@ -1,5 +1,5 @@
 ### Execute large-scale outbreak reconstruction algorithm
-set.seed(213)
+set.seed(220)
 ## Libraries
 library(ape)
 library(Rcpp)
@@ -17,15 +17,14 @@ source("local_mcmc.R")
 
 ## Unhash these for regular run
 
-init <- initialize()
-
-mcmc <- init[[1]]
-data <- init[[2]]
+# init <- initialize()
+# mcmc <- init[[1]]
+# data <- init[[2]]
 
 ## Unhash these for run on pre-computed data and initial MCMC
 
-#load("data.RData")
-#load("mcmc.RData")
+load("data.RData")
+load("mcmc.RData")
 
 ### M-H algo
 output <- list()
@@ -33,6 +32,9 @@ output <- list()
 liks <- c()
 
 for (r in 1:data$n_global) {
+
+  # For reproducible results
+  set.seed(r)
 
   # Make global moves
   mcmc <- global_mcmc(mcmc, data)
@@ -44,6 +46,8 @@ for (r in 1:data$n_global) {
 
   message(paste("Parallelizing over", length(mcmcs), "cores..."))
 
+  save(mcmcs, file = "mcmcs.RData")
+
   # Run MCMC in parallel over each subtree
   all_res <- parallel::mclapply(
     1:length(mcmcs),
@@ -52,11 +56,13 @@ for (r in 1:data$n_global) {
     },
     mcmcs = mcmcs,
     datas = datas,
+    mc.set.seed = F,
+    mc.preschedule = F,
     mc.cores = length(mcmcs)
   )
   #...or run in series
   # all_res <- list()
-  # for (j in 1:data$n_subtrees) {
+  # for (j in 1:length(mcmcs)) {
   #   all_res[[j]] <- local_mcmc(mcmcs[[j]], datas[[j]])
   # }
 

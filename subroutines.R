@@ -610,6 +610,7 @@ chop <- function(mcmc, data){
           roots <- c(roots, v)
 
           # Delete nodes from tree, except root
+          ## CHECK kids is correct
           h[kids] <- NA
 
           # Reset upstream nodes of root to nothing

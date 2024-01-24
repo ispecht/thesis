@@ -132,7 +132,7 @@ moves$b <- function(mcmc, data){
   prop <- mcmc
   prop$b <- rnorm(1, mcmc$b, 0.1)
   prop$e_lik <- e_lik(prop, data)
-  prop$g_lik[2:mcmc$n] <- unlist(parallel::mclapply(2:mcmc$n, g_lik, mcmc = prop, data = data, mc.cores = data$n_subtrees))
+  prop$g_lik[2:mcmc$n] <- unlist(parallel::mclapply(2:mcmc$n, g_lik, mcmc = prop, data = data, mc.set.seed = F, mc.cores = data$n_subtrees))
   prop$prior <- prior(prop)
 
   if(log(runif(1)) < prop$e_lik + sum(prop$g_lik[-1]) + prop$prior - mcmc$e_lik - sum(mcmc$g_lik[-1]) - mcmc$prior){
@@ -178,7 +178,7 @@ moves$mu <- function(mcmc, data){
   prop <- mcmc
   prop$mu <- rnorm(1, mcmc$mu, 1e-7)
   prop$e_lik <- e_lik(prop, data)
-  prop$g_lik[2:mcmc$n] <- unlist(parallel::mclapply(2:mcmc$n, g_lik, mcmc = prop, data = data, mc.cores = data$n_subtrees))
+  prop$g_lik[2:mcmc$n] <- unlist(parallel::mclapply(2:mcmc$n, g_lik, mcmc = prop, data = data, mc.set.seed = F, mc.cores = data$n_subtrees))
   prop$prior <- prior(prop)
 
   if(log(runif(1)) < prop$e_lik + sum(prop$g_lik[-1]) + prop$prior - mcmc$e_lik - sum(mcmc$g_lik[-1]) - mcmc$prior){
@@ -194,7 +194,7 @@ moves$p <- function(mcmc, data){
   prop <- mcmc
   prop$p <- rnorm(1, mcmc$p, 1e-7)
   prop$e_lik <- e_lik(prop, data)
-  prop$g_lik[2:mcmc$n] <- unlist(parallel::mclapply(2:mcmc$n, g_lik, mcmc = prop, data = data, mc.cores = data$n_subtrees))
+  prop$g_lik[2:mcmc$n] <- unlist(parallel::mclapply(2:mcmc$n, g_lik, mcmc = prop, data = data, mc.set.seed = F, mc.cores = data$n_subtrees))
   prop$prior <- prior(prop)
 
   if(log(runif(1)) < prop$e_lik + sum(prop$g_lik[-1]) + prop$prior - mcmc$e_lik - sum(mcmc$g_lik[-1]) - mcmc$prior){
@@ -210,7 +210,7 @@ moves$v <- function(mcmc, data){
   prop <- mcmc
   prop$v <- round(rnorm(1, mcmc$v, 100))
   prop$e_lik <- e_lik(prop, data)
-  prop$g_lik[2:mcmc$n] <- unlist(parallel::mclapply(2:mcmc$n, g_lik, mcmc = prop, data = data, mc.cores = data$n_subtrees))
+  prop$g_lik[2:mcmc$n] <- unlist(parallel::mclapply(2:mcmc$n, g_lik, mcmc = prop, data = data, mc.set.seed = F, mc.cores = data$n_subtrees))
   prop$prior <- prior(prop)
 
   if(log(runif(1)) < prop$e_lik + sum(prop$g_lik[-1]) + prop$prior - mcmc$e_lik - sum(mcmc$g_lik[-1]) - mcmc$prior){
@@ -817,8 +817,6 @@ moves$create <- function(mcmc, data){
     }
   }
 }
-
-
 
 
 
