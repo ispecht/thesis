@@ -20,6 +20,8 @@ source("local_mcmc.R")
 # init <- initialize()
 # mcmc <- init[[1]]
 # data <- init[[2]]
+#
+# data$n_subtrees = 12
 
 ## Unhash these for run on pre-computed data and initial MCMC
 
@@ -48,6 +50,9 @@ for (r in 1:data$n_global) {
 
   save(mcmcs, file = "mcmcs.RData")
 
+  # We're going to set the seed again to the same thing, just to be sure about reproducibility
+  set.seed(r)
+
   # Run MCMC in parallel over each subtree
   all_res <- parallel::mclapply(
     1:length(mcmcs),
@@ -57,7 +62,6 @@ for (r in 1:data$n_global) {
     mcmcs = mcmcs,
     datas = datas,
     mc.set.seed = F,
-    mc.preschedule = F,
     mc.cores = length(mcmcs)
   )
   #...or run in series

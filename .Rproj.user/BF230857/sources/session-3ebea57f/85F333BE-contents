@@ -20,15 +20,24 @@ for (i in 1:length(mcmcs)) {
   datas[[i]]$frozen <- setdiff(which(joined %in% roots), 1)
 }
 
-all_res <- parallel::mclapply(
-  1:length(mcmcs),
-  function(i, mcmcs, datas){
-    local_mcmc(mcmcs[[i]], datas[[i]])
-  },
-  mcmcs = mcmcs,
-  datas = datas,
-  mc.cores = 12
-)
+# all_res <- parallel::mclapply(
+#   1:length(mcmcs),
+#   function(i, mcmcs, datas){
+#     local_mcmc(mcmcs[[i]], datas[[i]])
+#   },
+#   mcmcs = mcmcs,
+#   datas = datas,
+#   mc.cores = 12
+# )
+
+all_res <- list()
+for (j in 1:length(mcmcs)) {
+  all_res[[j]] <- list()
+  all_res[[j]][[1]] <- mcmcs[[j]]
+}
+
+
+
 
 for (i in 1:length(mcmcs)) {
 
@@ -63,6 +72,10 @@ rnorm(1, rnorm(1), 1)
 
 s <- .Random.seed
 set.seed(2)
-mclapply(1:10, double_rnorm, mc.cores = 5, mc.set.seed = F)
+#rnorm(1)
+double_rnorm(1)
+set.seed(2)
+mclapply(1:10, double_rnorm, mc.cores = 10, mc.set.seed = F, mc.preschedule = F)
+
 
 
