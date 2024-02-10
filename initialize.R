@@ -216,6 +216,8 @@ initialize <- function(
             mcmc$m10[[j]] <- setdiff(mcmc$m10[[j]], snvs[[j]]$missing$call)
           }
         }
+
+        # Should switch to doing this by reverse BFS order
         mcmc$t[i] <- max_t - 5*(length(gens) - g)
 
         progress <- progress + 1
@@ -228,7 +230,7 @@ initialize <- function(
   }
 
 
-  mcmc$b <- 0.95 # Probability bottleneck has size 1
+  mcmc$b <- 0.05 # Probability bottleneck has size >1
   mcmc$a_g <- 5 # shape parameter of the generation interval
   mcmc$lambda_g <- 1 # rate parameter of the generation interval. FOR NOW: fixing at 1.
   mcmc$a_s <- 5 # shape parameter of the sojourn interval

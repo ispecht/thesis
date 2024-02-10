@@ -132,7 +132,7 @@ moves$b <- function(mcmc, data){
   prop <- mcmc
   prop$b <- rnorm(1, mcmc$b, 0.1)
   prop$e_lik <- e_lik(prop, data)
-  prop$g_lik[2:mcmc$n] <- unlist(parallel::mclapply(2:mcmc$n, g_lik, mcmc = prop, data = data, mc.cores = data$n_subtrees))
+  prop$g_lik[2:mcmc$n] <- sapply(2:mcmc$n, g_lik, mcmc = prop, data = data)
   prop$prior <- prior(prop)
 
   if(log(runif(1)) < prop$e_lik + sum(prop$g_lik[-1]) + prop$prior - mcmc$e_lik - sum(mcmc$g_lik[-1]) - mcmc$prior){
@@ -178,7 +178,7 @@ moves$mu <- function(mcmc, data){
   prop <- mcmc
   prop$mu <- rnorm(1, mcmc$mu, 1e-7)
   prop$e_lik <- e_lik(prop, data)
-  prop$g_lik[2:mcmc$n] <- unlist(parallel::mclapply(2:mcmc$n, g_lik, mcmc = prop, data = data, mc.cores = data$n_subtrees))
+  prop$g_lik[2:mcmc$n] <- sapply(2:mcmc$n, g_lik, mcmc = prop, data = data)
   prop$prior <- prior(prop)
 
   if(log(runif(1)) < prop$e_lik + sum(prop$g_lik[-1]) + prop$prior - mcmc$e_lik - sum(mcmc$g_lik[-1]) - mcmc$prior){
@@ -194,7 +194,7 @@ moves$p <- function(mcmc, data){
   prop <- mcmc
   prop$p <- rnorm(1, mcmc$p, 1e-7)
   prop$e_lik <- e_lik(prop, data)
-  prop$g_lik[2:mcmc$n] <- unlist(parallel::mclapply(2:mcmc$n, g_lik, mcmc = prop, data = data, mc.cores = data$n_subtrees))
+  prop$g_lik[2:mcmc$n] <- sapply(2:mcmc$n, g_lik, mcmc = prop, data = data)
   prop$prior <- prior(prop)
 
   if(log(runif(1)) < prop$e_lik + sum(prop$g_lik[-1]) + prop$prior - mcmc$e_lik - sum(mcmc$g_lik[-1]) - mcmc$prior){
@@ -210,7 +210,7 @@ moves$v <- function(mcmc, data){
   prop <- mcmc
   prop$v <- round(rnorm(1, mcmc$v, 100))
   prop$e_lik <- e_lik(prop, data)
-  prop$g_lik[2:mcmc$n] <- unlist(parallel::mclapply(2:mcmc$n, g_lik, mcmc = prop, data = data, mc.cores = data$n_subtrees))
+  prop$g_lik[2:mcmc$n] <- sapply(2:mcmc$n, g_lik, mcmc = prop, data = data)
   prop$prior <- prior(prop)
 
   if(log(runif(1)) < prop$e_lik + sum(prop$g_lik[-1]) + prop$prior - mcmc$e_lik - sum(mcmc$g_lik[-1]) - mcmc$prior){
@@ -307,7 +307,7 @@ moves$genotype <- function(mcmc, data){
 ### Topological moves
 
 ## Move the ancestor of a node one step upstream (towards tips) or one step downstream (towards root) onto next/previous tracked host
-moves$h_step <- function(mcmc, data, resample_t = FALSE, resample_w = FALSE){
+moves$h_step <- function(mcmc, data, upstream = TRUE, resample_t = FALSE, resample_w = FALSE){
   # Choose random host with ancestor
   if(resample_t){
     i <- sample(setdiff(2:mcmc$n, data$frozen), 1)
@@ -321,7 +321,7 @@ moves$h_step <- function(mcmc, data, resample_t = FALSE, resample_w = FALSE){
   prop <- mcmc
 
   # Are we going upstream or downstream?
-  upstream <- runif(1) < 1/2
+  #upstream <- runif(1) < 1/2
 
   if(upstream){
     # Who are the other children of h_old?
@@ -578,20 +578,20 @@ moves$swap <- function(mcmc, data, exchange_children = FALSE){
 
 
 ## Create / remove a node
-moves$create <- function(mcmc, data){
+moves$create <- function(mcmc, data, create = T, upstream = T){
   # Are we creating or deleting an unobserved node?
-  if(runif(1) < 1/2){
-    create <- T
-  }else{
-    create <- F
-  }
-
-  # Are we moving nodes onto the new node upstream or downstream?
-  if(runif(1) < 1/2){
-    upstream <- T
-  }else{
-    upstream <- F
-  }
+  # if(runif(1) < 1/2){
+  #   create <- T
+  # }else{
+  #   create <- F
+  # }
+  #
+  # # Are we moving nodes onto the new node upstream or downstream?
+  # if(runif(1) < 1/2){
+  #   upstream <- T
+  # }else{
+  #   upstream <- F
+  # }
 
   if(create){
     # Pick any node with an ancestor. (Note, some choices impossible, but this is okay!)

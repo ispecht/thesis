@@ -3,8 +3,8 @@ set.seed(220)
 ## Libraries
 library(ape)
 library(Rcpp)
-#library(igraph)
-#library(ggraph)
+library(igraph)
+library(ggraph)
 library(parallel)
 
 source("likelihood.R")
@@ -17,16 +17,16 @@ source("local_mcmc.R")
 
 ## Unhash these for regular run
 
-# init <- initialize()
-# mcmc <- init[[1]]
-# data <- init[[2]]
-#
-# data$n_subtrees = 12
+init <- initialize()
+mcmc <- init[[1]]
+data <- init[[2]]
+
+#data$n_subtrees = 12
 
 ## Unhash these for run on pre-computed data and initial MCMC
 
-load("data.RData")
-load("mcmc.RData")
+# load("data.RData")
+# load("mcmc.RData")
 
 ### M-H algo
 output <- list()
@@ -50,10 +50,32 @@ for (r in 1:data$n_global) {
 
   save(mcmcs, file = "mcmcs.RData")
 
-  # We're going to set the seed again to the same thing, just to be sure about reproducibility
-  set.seed(r)
-
   # Run MCMC in parallel over each subtree
+  # Make the cluster
+  # cl <- makeCluster(length(mcmcs))
+  #
+  # all_res <- parallel::parLapply(
+  #   cl,
+  #   1:length(mcmcs),
+  #   function(i, mcmcs, datas){
+  #     source("likelihood.R")
+  #     source("moves.R")
+  #     source("prior.R")
+  #     source("subroutines.R")
+  #     source("local_mcmc.R")
+  #
+  #     set.seed(213)
+  #
+  #     local_mcmc(mcmcs[[i]], datas[[i]])
+  #   },
+  #   mcmcs = mcmcs,
+  #   datas = datas
+  # )
+  #
+  # stopCluster(cl)
+
+
+
   all_res <- parallel::mclapply(
     1:length(mcmcs),
     function(i, mcmcs, datas){
@@ -89,8 +111,10 @@ for (r in 1:data$n_global) {
 
 
   message(paste(r, "global iterations complete. Log-likelihood =", round(liks[r], 2)))
-  #print(plot_current(mcmc$h, data$n_obs))
+  print(plot_current(mcmc$h, data$n_obs))
   #print(mcmc$w)
+  print(mcmc$mu)
+  print(mcmc$p)
 
   # if(r == 10){
   #   data$n_subtrees <- 3
@@ -98,7 +122,7 @@ for (r in 1:data$n_global) {
 
 }
 
-save(output, file = "output.RData")
+#save(output, file = "output.RData")
 
 
 

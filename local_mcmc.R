@@ -11,26 +11,61 @@ local_mcmc <- function(mcmc, data){
      # data$n_local <- 1
 
   for (r in 1:data$n_local) {
+    # Move 11
     mcmc <- moves$w(mcmc, data)
-    mcmc <- moves$t(mcmc, data)
-    # Unhash line below when running on VM
-    mcmc <- moves$swap(mcmc, data, exchange_children = T)
-    mcmc <- moves$h_step(mcmc, data, resample_t = T)
-    mcmc <- moves$genotype(mcmc, data)
-    #
-    mcmc <- moves$h_global(mcmc, data)
-    mcmc <- moves$create(mcmc, data)
 
+    # Move 12
+    mcmc <- moves$t(mcmc, data)
+
+    # Move 13
     mcmc <- moves$w_t(mcmc, data)
+
+    # Move 14
     mcmc <- moves$h_step(mcmc, data)
-    mcmc <- moves$swap(mcmc, data)
+
+    # Move 15
+    mcmc <- moves$h_step(mcmc, data, upstream = F)
+
+    # Move 16
+    mcmc <- moves$h_step(mcmc, data, resample_t = T)
+
+    # Move 17
+    mcmc <- moves$h_step(mcmc, data, upstream = F, resample_t = T)
+
+    # Move 18
     mcmc <- moves$h_step(mcmc, data, resample_t = T, resample_w = T)
 
+    # Move 19
+    mcmc <- moves$h_step(mcmc, data, upstream = F, resample_t = T, resample_w = T)
+
+    # Move 20
+    mcmc <- moves$h_global(mcmc, data)
+
+    # Move 21
+    mcmc <- moves$swap(mcmc, data)
+
+    # Move 22
+    mcmc <- moves$swap(mcmc, data, exchange_children = T)
+
+    # Move 23
+    mcmc <- moves$genotype(mcmc, data)
+
+    # Move 24
+    mcmc <- moves$create(mcmc, data)
+
+    # Move 25
+    mcmc <- moves$create(mcmc, data, create = F)
+
+    # Move 26
+    mcmc <- moves$create(mcmc, data, upstream = F)
+
+    # Move 27
+    mcmc <- moves$create(mcmc, data, create = F, upstream = F)
+
+    # Append new results
     if(r %% data$sample_every == 0){
       res <- c(res, list(mcmc))
     }
-
-    #print(r)
   }
 
   return(res)

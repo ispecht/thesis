@@ -43,6 +43,9 @@ g_lik <- function(mcmc, data, i){
     # Evolutionary time
     delta_t <- mcmc$t[i] - g
 
+    # Evolutionary time from first downstream host of h to infection time of i, approx
+    delta_t_prime <- delta_t * mcmc$w[i] / (mcmc$w[i] + 1)
+
     if(delta_t <= 0){
       -Inf
     }else{
@@ -66,6 +69,7 @@ g_lik <- function(mcmc, data, i){
       out <- no_mut * (log(1/4 + (3/4)*exp(-mcmc$mu * delta_t)) + log_p_no_isnv) +
 
         # Likelihood from x = 0, y = 1 and x = 1, y = 0
+        # CORRECTION: make sure not to confuse mu with mu/3!
         (length(mcmc$m01[[i]]) + length(mcmc$m10[[i]])) * (log(1/4 - (1/4)*exp(-mcmc$mu * delta_t)) + log_p_no_isnv)
 
       if(i <= data$n_obs){
@@ -103,8 +107,8 @@ g_lik <- function(mcmc, data, i){
                 # Likelihood from 0 < x < 1, 0 < y < 1
                 length(mcmc$m1y[[i]]) * log_p_isnv +
                 sum(log(
-                  ((1/4 + (3/4)*exp(-mcmc$mu * delta_t))*(1 - freq_xy_anc) + (1/4 - (1/4)*exp(-mcmc$mu * delta_t))*freq_xy_anc) * denovo(freq_xy, mcmc$p) * (1 - (mcmc$b^(mcmc$w[i] + 1) * 2 * freq_xy_anc * (1 - freq_xy_anc) / 3^mcmc$w[i])) +
-                    ((1/4 + (3/4)*exp(-mcmc$mu * delta_t))*freq_xy_anc + (1/4 - (1/4)*exp(-mcmc$mu * delta_t))*(1 - freq_xy_anc)) * denovo(1 - freq_xy, mcmc$p) * (1 - (mcmc$b^(mcmc$w[i] + 1) * 2 * freq_xy_anc * (1 - freq_xy_anc) / 3^mcmc$w[i])) +
+                  ((1/4 + (3/4)*exp(-mcmc$mu * delta_t_prime))*(1 - freq_xy_anc) + (1/4 - (1/4)*exp(-mcmc$mu * delta_t_prime))*freq_xy_anc) * denovo(freq_xy, mcmc$p) * (1 - (mcmc$b^(mcmc$w[i] + 1) * 2 * freq_xy_anc * (1 - freq_xy_anc) / 3^mcmc$w[i])) +
+                    ((1/4 + (3/4)*exp(-mcmc$mu * delta_t_prime))*freq_xy_anc + (1/4 - (1/4)*exp(-mcmc$mu * delta_t_prime))*(1 - freq_xy_anc)) * denovo(1 - freq_xy, mcmc$p) * (1 - (mcmc$b^(mcmc$w[i] + 1) * 2 * freq_xy_anc * (1 - freq_xy_anc) / 3^mcmc$w[i])) +
                     (mcmc$b^(mcmc$w[i] + 1) * 2 * freq_xy_anc * (1 - freq_xy_anc) / 3^mcmc$w[i])
                 ))
             }
@@ -123,13 +127,13 @@ g_lik <- function(mcmc, data, i){
             # Likelihood from 0 < x < 1, y = 0
             length(mcmc$mx0[[i]]) * log_p_no_isnv +
             sum(log(
-              (1/4 + (3/4)*exp(-mcmc$mu * delta_t))*(1 - freq_x0_anc) + (1/4 - (1/4)*exp(-mcmc$mu * delta_t))*freq_x0_anc
+              (1/4 + (3/4)*exp(-mcmc$mu * delta_t_prime))*(1 - freq_x0_anc) + (1/4 - (1/4)*exp(-mcmc$mu * delta_t_prime))*freq_x0_anc
             )) + sum(log(1 - (mcmc$b^(mcmc$w[i] + 1) * 2 * freq_x0_anc * (1 - freq_x0_anc) / 3^mcmc$w[i]))) + # probability we don't transmit successive split bottlenecks
 
             # Likelihood from 0 < x < 1, y = 1
             length(mcmc$mx1[[i]]) * log_p_no_isnv +
             sum(log(
-              (1/4 + (3/4)*exp(-mcmc$mu * delta_t))*(freq_x1_anc) + (1/4 - (1/4)*exp(-mcmc$mu * delta_t))*(1 - freq_x1_anc)
+              (1/4 + (3/4)*exp(-mcmc$mu * delta_t_prime))*(freq_x1_anc) + (1/4 - (1/4)*exp(-mcmc$mu * delta_t_prime))*(1 - freq_x1_anc)
             )) + sum(log(1 - (mcmc$b^(mcmc$w[i] + 1) * 2 * freq_x1_anc * (1 - freq_x1_anc) / 3^mcmc$w[i]))) # probability we don't transmit successive split bottlenecks
 
         }
