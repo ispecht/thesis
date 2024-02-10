@@ -99,6 +99,10 @@ newer_names <- paste0(new_names, ".vcf")
 file.rename(new_names, newer_names)
 
 
+### Assemble trial dataset
+meta$Collection.Date <- as.Date(meta$Collection.Date)
+
+
 
 
 
