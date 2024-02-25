@@ -30,7 +30,7 @@ write.csv(dates, file = "~/Desktop/100k/date.csv", quote = F, row.names = F)
 
 ### Develop initial ancestry based on lineage
 
-meta <- read.csv("~/Desktop/100k/metadata.csv")
+meta <- read.csv("~/Desktop/input_data_huge/metadata.csv")
 meta <- meta[match(filter_names, meta$case), ]
 meta <- meta[, c("case", "pango_lineage_full")]
 row.names(meta) <- NULL
@@ -99,7 +99,50 @@ newer_names <- paste0(new_names, ".vcf")
 file.rename(new_names, newer_names)
 
 
+### Assemble trial dataset
+meta$Collection.Date <- as.Date(meta$Collection.Date)
+hist(meta$Collection.Date, breaks = "weeks")
+min_date <- min(meta$Collection.Date)
+unique(meta$Practice.Name[date <= meta$Collection.Date & meta$Collection.Date <= date + 10])
+
+date <- as.Date("2022-06-01")
+sum(date <= meta$Collection.Date & meta$Collection.Date <= date + 10)
+
+date_range <- as.numeric(difftime(date, as.Date("2020-01-01"), units = "days"))
+
+sort(table(meta$Practice.Name))
 
 
 
+cons <- read.FASTA("~/Desktop/input_data_huge/aligned.fasta")
+date <- read.csv("~/Desktop/input_data_huge/date.csv")
+sub <- meta[meta$Program2 == "Prison", ]
+keep <- which(names(cons) %in% sub$case)
+cons <- cons[keep]
+date <- date[keep,]
 
+write.FASTA(cons, "~/Desktop/input_data/aligned.fasta")
+write.csv(date, file = "~/Desktop/input_data/date.csv", quote = F, row.names = F)
+
+cmds <- paste0("cp ~/Desktop/input_data_huge/vcf/", names(cons), ".vcf ./vcf")
+cmds <- c(cmds, "cp ~/Desktop/input_data_huge/ref.fasta .")
+writeLines(cmds, "~/Desktop/input_data/script.txt")
+
+
+### Filter for common iSNVs
+context <- read.csv("~/Desktop/reconstructR/inst/extdata/context.csv")
+tot_isnvs <- data.frame(MUT = context$aa_change_full, POS = context$POS, COUNT = Rfast::rowsums(as.matrix(context[,4:ncol(context)]), na.rm = T))
+N_isnv_cases <- sum(tot_isnvs$COUNT)
+N_context <- 172519
+
+hgeom_probs <- c()
+for (i in 1:29903) {
+  sub <- tot_isnvs[tot_isnvs$POS == i, ]
+  hgeom_probs[i] <- 1 - phyper(1, sum(sub$COUNT), N_context - sum(sub$COUNT), 1000) # Probability
+}
+
+
+# What sites have a probability exceeding 0.05?
+problem_sites <- which(hgeom_probs > 0.05)
+
+write.csv(problem_sites, "~/Desktop/problematic.csv", quote = F, row.names = F)

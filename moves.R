@@ -142,11 +142,27 @@ moves$b <- function(mcmc, data){
   }
 }
 
+## Update lambda using a N(0,0.5^2) proposal density
+moves$lambda <- function(mcmc, data){
+  # Proposal
+  prop <- mcmc
+  prop$lambda <- rnorm(1, mcmc$lambda, 0.5)
+  prop$e_lik <- e_lik(prop, data)
+  prop$g_lik[2:mcmc$n] <- sapply(2:mcmc$n, g_lik, mcmc = prop, data = data)
+  prop$prior <- prior(prop)
+
+  if(log(runif(1)) < prop$e_lik + sum(prop$g_lik[-1]) + prop$prior - mcmc$e_lik - sum(mcmc$g_lik[-1]) - mcmc$prior){
+    return(prop)
+  }else{
+    return(mcmc)
+  }
+}
+
 ## Update a_g using a N(0,1) proposal density
 moves$a_g <- function(mcmc, data){
   # Proposal
   prop <- mcmc
-  prop$a_g <- rnorm(1, mcmc$a_g, 1)
+  prop$a_g <- rnorm(1, mcmc$a_g, 0.5)
   prop$e_lik <- e_lik(prop, data)
   prop$prior <- prior(prop)
 
@@ -176,7 +192,7 @@ moves$a_s <- function(mcmc, data){
 moves$mu <- function(mcmc, data){
   # Proposal
   prop <- mcmc
-  prop$mu <- rnorm(1, mcmc$mu, 1e-7)
+  prop$mu <- rnorm(1, mcmc$mu, 5e-7)
   prop$e_lik <- e_lik(prop, data)
   prop$g_lik[2:mcmc$n] <- sapply(2:mcmc$n, g_lik, mcmc = prop, data = data)
   prop$prior <- prior(prop)
@@ -192,7 +208,7 @@ moves$mu <- function(mcmc, data){
 moves$p <- function(mcmc, data){
   # Proposal
   prop <- mcmc
-  prop$p <- rnorm(1, mcmc$p, 1e-7)
+  prop$p <- rnorm(1, mcmc$p, 5e-7)
   prop$e_lik <- e_lik(prop, data)
   prop$g_lik[2:mcmc$n] <- sapply(2:mcmc$n, g_lik, mcmc = prop, data = data)
   prop$prior <- prior(prop)
@@ -208,7 +224,7 @@ moves$p <- function(mcmc, data){
 moves$v <- function(mcmc, data){
   # Proposal
   prop <- mcmc
-  prop$v <- round(rnorm(1, mcmc$v, 100))
+  prop$v <- round(rnorm(1, mcmc$v, 1000))
   prop$e_lik <- e_lik(prop, data)
   prop$g_lik[2:mcmc$n] <- sapply(2:mcmc$n, g_lik, mcmc = prop, data = data)
   prop$prior <- prior(prop)

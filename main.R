@@ -1,10 +1,11 @@
 ### Execute large-scale outbreak reconstruction algorithm
-set.seed(220)
+set.seed(226)
 ## Libraries
 library(ape)
 library(Rcpp)
 library(igraph)
 library(ggraph)
+library(cowplot)
 library(parallel)
 
 source("likelihood.R")
@@ -22,6 +23,10 @@ mcmc <- init[[1]]
 data <- init[[2]]
 
 #data$n_subtrees = 12
+data$n_local = 10
+data$sample_every = 10
+data$n_global = 10000
+data$N <- 100000
 
 ## Unhash these for run on pre-computed data and initial MCMC
 
@@ -29,106 +34,248 @@ data <- init[[2]]
 # load("mcmc.RData")
 
 ### M-H algo
-output <- list()
+run_mcmc <- function(mcmc, data){
+  output <- list()
+  liks <- c()
 
-liks <- c()
+  for (r in 1:data$n_global) {
 
-for (r in 1:data$n_global) {
+    # For reproducible results
+    #set.seed(r)
 
-  # For reproducible results
-  set.seed(r)
+    # Make global moves
+    mcmc <- global_mcmc(mcmc, data)
 
-  # Make global moves
-  mcmc <- global_mcmc(mcmc, data)
+    # Chop up the tree into pieces
+    breakdowns <- breakdown(mcmc, data)
+    mcmcs <- breakdowns[[1]]
+    datas <- breakdowns[[2]]
 
-  # Chop up the tree into pieces
-  breakdowns <- breakdown(mcmc, data)
-  mcmcs <- breakdowns[[1]]
-  datas <- breakdowns[[2]]
+    message(paste("Parallelizing over", length(mcmcs), "cores..."))
 
-  message(paste("Parallelizing over", length(mcmcs), "cores..."))
+    save(mcmcs, file = "mcmcs.RData")
 
-  save(mcmcs, file = "mcmcs.RData")
-
-  # Run MCMC in parallel over each subtree
-  # Make the cluster
-  # cl <- makeCluster(length(mcmcs))
-  #
-  # all_res <- parallel::parLapply(
-  #   cl,
-  #   1:length(mcmcs),
-  #   function(i, mcmcs, datas){
-  #     source("likelihood.R")
-  #     source("moves.R")
-  #     source("prior.R")
-  #     source("subroutines.R")
-  #     source("local_mcmc.R")
-  #
-  #     set.seed(213)
-  #
-  #     local_mcmc(mcmcs[[i]], datas[[i]])
-  #   },
-  #   mcmcs = mcmcs,
-  #   datas = datas
-  # )
-  #
-  # stopCluster(cl)
+    # Run MCMC in parallel over each subtree
+    # Make the cluster
+    # cl <- makeCluster(length(mcmcs))
+    #
+    # all_res <- parallel::parLapply(
+    #   cl,
+    #   1:length(mcmcs),
+    #   function(i, mcmcs, datas){
+    #     source("likelihood.R")
+    #     source("moves.R")
+    #     source("prior.R")
+    #     source("subroutines.R")
+    #     source("local_mcmc.R")
+    #
+    #     set.seed(213)
+    #
+    #     local_mcmc(mcmcs[[i]], datas[[i]])
+    #   },
+    #   mcmcs = mcmcs,
+    #   datas = datas
+    # )
+    #
+    # stopCluster(cl)
 
 
 
-  all_res <- parallel::mclapply(
-    1:length(mcmcs),
-    function(i, mcmcs, datas){
-      local_mcmc(mcmcs[[i]], datas[[i]])
-    },
-    mcmcs = mcmcs,
-    datas = datas,
-    mc.set.seed = F,
-    mc.cores = length(mcmcs)
-  )
-  #...or run in series
-  # all_res <- list()
-  # for (j in 1:length(mcmcs)) {
-  #   all_res[[j]] <- local_mcmc(mcmcs[[j]], datas[[j]])
-  # }
+    all_res <- parallel::mclapply(
+      1:length(mcmcs),
+      function(i, mcmcs, datas){
+        local_mcmc(mcmcs[[i]], datas[[i]])
+      },
+      mcmcs = mcmcs,
+      datas = datas,
+      mc.set.seed = F,
+      mc.cores = length(mcmcs)
+    )
+    #...or run in series
+    # all_res <- list()
+    # for (j in 1:length(mcmcs)) {
+    #   all_res[[j]] <- local_mcmc(mcmcs[[j]], datas[[j]])
+    # }
 
-  # Amalgamate results of parallel MCMC run
-  amalgam <- amalgamate(all_res, mcmcs, datas, mcmc, data)
+    # Amalgamate results of parallel MCMC run
+    amalgam <- amalgamate(all_res, mcmcs, datas, mcmc, data)
 
-  # Record amalgamated results, filtering to parameters of interest
-  for (i in 1:length(amalgam)) {
-    output <- c(output, list(
-      amalgam[[i]][data$record]
-    ))
+    # Record amalgamated results, filtering to parameters of interest
+    for (i in 1:length(amalgam)) {
+      output <- c(output, list(
+        amalgam[[i]][data$record]
+      ))
+    }
+
+    # "mcmc" is now the most recent result
+    mcmc <- amalgam[[length(amalgam)]]
+
+    #print(r)
+
+    liks <- c(liks, mcmc$e_lik + sum(mcmc$g_lik[2:mcmc$n]) + mcmc$prior)
+
+
+    message(paste(r, "global iterations complete. Log-likelihood =", round(liks[r], 2)))
+    #print(plot_current(mcmc$h, data$n_obs))
+    #print(mcmc$w)
+    print(mcmc$mu)
+    print(mcmc$p)
+    print(mcmc$lambda)
+    # print(mcmc$a_g)
+
+    # if(r == 10){
+    #   data$n_subtrees <- 3
+    # }
+
   }
+  return(list(
+    liks, output
+  ))
+}
 
-  # "mcmc" is now the most recent result
-  mcmc <- amalgam[[length(amalgam)]]
-
-  #print(r)
-
-  liks <- c(liks, mcmc$e_lik + sum(mcmc$g_lik[2:mcmc$n]) + mcmc$prior)
+#hehe <- run_mcmc(mcmc, data)
 
 
-  message(paste(r, "global iterations complete. Log-likelihood =", round(liks[r], 2)))
-  print(plot_current(mcmc$h, data$n_obs))
-  #print(mcmc$w)
-  print(mcmc$mu)
-  print(mcmc$p)
+### Sensitivity analysis
+# Parameters to assess sensitivity: (as changes from default values)
+a_gs <- c(4, 6) # Default = 5
+lambda_gs <- a_gs/5 # Default = 1. Also update a_g to maintain mean of 5. Corresponds to variance of 5 (default), 25, 1
+a_ss <- c(4, 6) # Default = 5
+lambda_ss <- a_ss/5 # Default = 1. Also update a_s to maintain mean of 5. Corresponds to variance of 5 (default), 25, 1
+rhos <- c(0.05, 0.2) # Default = 0.1. Also update psi = rho / (2.5 + rho)
+psis <- 0.1 / (c(1.5, 3.5) + 0.1)
 
-  # if(r == 10){
-  #   data$n_subtrees <- 3
-  # }
+# jth column is corresponds to each of the above params, in order
+combos <- matrix(c(5, 1, 5, 1, 0.1, 0.1/(2.5 + 0.1)), nrow = 12, ncol = 6, byrow = T)
+combos[1:2, 1] <- a_gs
+combos[3:4, 1] <- lambda_gs * 5
+combos[3:4, 2] <- lambda_gs
+combos[5:6, 3] <- a_ss
+combos[7:8, 3] <- lambda_ss * 5
+combos[7:8, 4] <- lambda_ss
+combos[9:10, 5] <- rhos
+combos[9:10, 6] <- rhos / (2.5 + rhos)
+combos[11:12, 6] <- psis
+
+sensitivity <- list()
+all_liks <- list()
+for(i in 1:nrow(combos)){
+  mcmc$a_g <- combos[i, 1]
+  mcmc$lambda_g <- combos[1, 2]
+  mcmc$a_s <- combos[i, 3]
+  mcmc$lambda_s <- combos[i, 4]
+  mcmc$rho <- combos[i, 5]
+  mcmc$psi <- combos[i, 6]
+
+  out <- run_mcmc(mcmc, data)
+  all_liks[[i]] <- out[[1]]
+  sensitivity[[i]] <- out[[2]]
+  print(i)
+}
+
+## Get adjacency matrix. Ancestor > data$n_obs doesn't count for anything. Indirect transmission OK
+get_adj <- function(run, n_obs){
+  out <- matrix(0, nrow = n_obs, ncol = n_obs)
+  len <- length(run)
+  for (i in (len*0.1):len) {
+    h <- run[[i]]$h
+    present <- which(!is.na(h) & h <= n_obs)
+    present <- present[present <= n_obs]
+    out[cbind(h[present], present)] <- out[cbind(h[present], present)] + 1
+  }
+  return(out / (0.9*len))
+}
+
+adjs <- lapply(sensitivity, get_adj, n_obs = data$n_obs)
+
+
+# Run on default settings
+default <- run_mcmc(mcmc, data)
+default_adj <- get_adj(default[[2]], data$n_obs)
+
+# Histogram of change in adjacency matrix
+network_change <- function(i){
+  change <- as.vector(adjs[[i]] - default_adj)
+  change <- change[abs(change) > 0]
+
+  p <- ggplot(data.frame(x = change), aes(x = x)) +
+    geom_histogram(aes(y=after_stat(density)), binwidth = 0.1, boundary = 0.1, color = "white", fill = "grey") +
+    xlab("Change in Posterior Probability") +
+    ylab("Probability Density") +
+    #scale_y_continuous(trans='log2') +
+    xlim(-1, 1) +
+    theme_minimal()
+  p
+}
+
+hists <- lapply(1:12, network_change)
+all_hists <- plot_grid(
+  hists[[1]],
+  hists[[2]],
+  hists[[3]],
+  hists[[4]],
+  hists[[5]],
+  hists[[6]],
+  hists[[7]],
+  hists[[8]],
+  hists[[9]],
+  hists[[10]],
+  hists[[11]],
+  hists[[12]],
+  ncol = 3,
+  labels = "AUTO"
+)
+
+ggsave("./figs/hist.pdf", width = 7.8, height = 9)
+ggsave("./figs/hist.png", width = 7.8, height = 9)
+
+## Next up, density plots of mu
+param_dens <- function(i, param){
+  run <- sensitivity[[i]]
+  out <- c()
+  len <- length(run)
+  for (j in (len*0.1):len) {
+    out <- c(out, (run[[j]][[param]]))
+  }
+  p <- ggplot(data.frame(x = out), aes(x = x)) +
+    geom_histogram(aes(y=after_stat(density)), color = "white", fill = "grey") +
+    xlab(paste("Value of", param)) +
+    ylab("Probability Density") +
+    scale_x_continuous(breaks = signif(seq(min(out), max(out), by = (max(out) - min(out)) / 2) , 2)) +
+    scale_y_continuous(labels = function(x) format(x, scientific = TRUE)) +
+    theme_minimal() +
+    theme(plot.margin = margin(t = 0, r = 0.2, b = 0, l = 0, unit = "in"))
+  p
+}
+
+output_plots <- function(param){
+  dens <- lapply(1:12, param_dens, param = param)
+  all_dens <- plot_grid(
+    dens[[1]],
+    dens[[2]],
+    dens[[3]],
+    dens[[4]],
+    dens[[5]],
+    dens[[6]],
+    dens[[7]],
+    dens[[8]],
+    dens[[9]],
+    dens[[10]],
+    dens[[11]],
+    dens[[12]],
+    ncol = 3,
+    labels = "AUTO"
+  )
+
+  ggsave(paste0("./figs/", param, ".pdf"), width = 7.8, height = 10.2)
+  ggsave(paste0("./figs/", param, ".png"), width = 7.8, height = 10.2)
 
 }
 
-#save(output, file = "output.RData")
-
-
-
-# for (i in 1:1000) {
-#   print(output[[i]]$mu)
-# }
+output_plots("mu")
+output_plots("p")
+output_plots("lambda")
+output_plots("b")
 
 
 
@@ -137,77 +284,10 @@ for (r in 1:data$n_global) {
 
 
 
-#print(mcmc$g_lik)
-# plot(liks)
-# plot(liks[50000:100000])
-#
-# ## Diagnostics
-# diagnostics <- list()
-# diagnostics$n <- c()
-# diagnostics$n_mut <- c() # Total number of mutations
-# diagnostics$adj <- matrix(0, nrow = data$n_obs, ncol = data$n_obs)
-# for (i in 1:length(res)) {
-#   diagnostics$n[i] <- res[[i]]$n
-#   diagnostics$n_mut[i] <- length(c(
-#     unlist(res[[i]]$m01),
-#     unlist(res[[i]]$m0y),
-#     unlist(res[[i]]$m10),
-#     unlist(res[[i]]$m1y)
-#   ))
-#
-# }
-# plot(diagnostics$n)
-# plot(diagnostics$n_mut)
-# plot(diagnostics$n_mut[300:1000])
-#
-# ## Idea for visualization / summary: for each unobserved node, get a list of which nodes are upstream.
-# # Then take the MAP of the vector of ancestors concatenated with the vector of lists of upstream nodes.
-# diagnostics$h <- list()
-# diagnostics$adj <- matrix(0, nrow = max(diagnostics$n), ncol = max(diagnostics$n))
-# for (i in 1:length(res)) {
-#   h <- res[[i]]$h
-#   if(res[[i]]$n > data$n_obs){
-#     unobserved_anc <- which(h > data$n_obs)
-#     unobs <- unique(h[unobserved_anc])
-#     # Rename "unobs" as "sort(unobs)"
-#     sorted <- sort(unobs)
-#     h[unobserved_anc] <- sorted[match(h[unobserved_anc], unobs)]
-#   }
-#   diagnostics$h[[i]] <- h
-#
-#   if(i > 0){
-#     diagnostics$adj[cbind(h[2:res[[i]]$n], 2:res[[i]]$n)] <- diagnostics$adj[cbind(h[2:res[[i]]$n], 2:res[[i]]$n)] + 1
-#   }
-# }
-# diagnostics$adj <- diagnostics$adj / length(res)
-#
-# adj <- diagnostics$adj
-# adj[adj < 0.05] <- 0
-#
-# g <- graph_from_adjacency_matrix(adj, mode = "directed", weighted = T)
-# color <- rep("orange", length(V(g)))
-# color[1:data$n_obs] <- "blue"
-# plot(
-#   g,
-#   #vertex.label=NA,
-#   vertex.label.cex = 0.4,
-#   vertex.label.color = 'white',
-#   vertex.label.family = 'sans',
-#   vertex.size=4,
-#   vertex.color = color,
-#   vertex.frame.color = "#00000000",
-#   edge.width=E(g)$weight*3,
-#   edge.color = rgb(0,0,0,E(g)$weight),
-#   edge.arrow.size = 0.5
-# )
 
-#save(res, file = "res_12-28.RData")
-
-
-
-
-
-
-
+# Adjusted reproductive numbers
+# Solve log(R_0) / a_g = log(2.5)/5
+# r0s <- exp(a_gs * log(2.5)/5)
+# combos[1:2, 6] <- 0.1 / (r0s + 0.1)
 
 

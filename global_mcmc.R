@@ -5,6 +5,8 @@ global_mcmc <- function(mcmc, data){
   # Move 1
   mcmc <- moves$b(mcmc, data)
 
+  #mcmc <- moves$a_g(mcmc, data)
+
   # Move 6
   mcmc <- moves$mu(mcmc, data)
 
@@ -12,7 +14,8 @@ global_mcmc <- function(mcmc, data){
   mcmc <- moves$p(mcmc, data)
 
   # Move 8
-  mcmc <- moves$v(mcmc, data)
+  #mcmc <- moves$v(mcmc, data)
+  mcmc <- moves$lambda(mcmc, data)
 
   # We are fixing parameters associated with moves 2-5, 9-10
   return(mcmc)

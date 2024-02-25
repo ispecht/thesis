@@ -62,7 +62,8 @@ for (r in 1:data$n_global) {
   all_res <- mclapply(1:length(mcmcs), function(i){
     load(paste0("./state/substate/tree_", i, "/res.RData"))
     return(res)
-  })
+  },
+  mc.cores = data$n_subtrees)
 
   # (or in series....)
   # all_res <- list()
