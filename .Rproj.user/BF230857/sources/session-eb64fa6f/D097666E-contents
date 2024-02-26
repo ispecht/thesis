@@ -155,6 +155,8 @@ denovo_normed <- function(x, p, filters, log = FALSE){
   }
 }
 
+
+
 ## Maximum time of infection for a host i
 get_max_t <- function(mcmc, data, i){
   ts <- mcmc$t[which(mcmc$h == i)]

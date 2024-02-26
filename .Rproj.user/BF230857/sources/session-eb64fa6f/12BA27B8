@@ -1,26 +1,26 @@
 {
-    "id": "525F6F0D",
-    "path": "~/Desktop/thesis/prior.R",
-    "project_path": "prior.R",
+    "id": "12BA27B8",
+    "path": "~/Desktop/thesis/main.R",
+    "project_path": "main.R",
     "type": "r_source",
     "hash": "0",
     "contents": "",
     "dirty": false,
-    "created": 1707682705295.0,
+    "created": 1708850173754.0,
     "source_on_save": false,
     "relative_order": 6,
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "65,28",
-        "scrollLine": "62"
+        "cursorPosition": "14,32",
+        "scrollLine": "0"
     },
     "folds": "",
-    "lastKnownWriteTime": 1707882113,
+    "lastKnownWriteTime": 1708899245,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1707882113393,
+    "last_content_update": 1708899245789,
     "read_only": false,
     "read_only_alternatives": []
 }

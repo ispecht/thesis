@@ -1,26 +1,26 @@
 {
-    "id": "525F6F0D",
-    "path": "~/Desktop/thesis/prior.R",
-    "project_path": "prior.R",
+    "id": "DC1D2210",
+    "path": "~/Desktop/thesis/moves.R",
+    "project_path": "moves.R",
     "type": "r_source",
-    "hash": "0",
+    "hash": "1280895651",
     "contents": "",
     "dirty": false,
-    "created": 1707682705295.0,
+    "created": 1708833863154.0,
     "source_on_save": false,
-    "relative_order": 6,
+    "relative_order": 2,
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "65,28",
-        "scrollLine": "62"
+        "cursorPosition": "6,18",
+        "scrollLine": "0"
     },
     "folds": "",
-    "lastKnownWriteTime": 1707882113,
+    "lastKnownWriteTime": 1707882606,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1707882113393,
+    "last_content_update": 1707882606,
     "read_only": false,
     "read_only_alternatives": []
 }

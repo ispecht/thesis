@@ -155,7 +155,13 @@ denovo_normed <- function(x, p, filters, log = FALSE){
   }
 }
 
-
+# Negative binomial MGF
+# psirho is psi^rho
+mgf <- cppFunction(
+  'double mgf(double t, double rho, double psi, double psirho, int deriv) {
+    c0 =
+  }'
+)
 
 ## Maximum time of infection for a host i
 get_max_t <- function(mcmc, data, i){

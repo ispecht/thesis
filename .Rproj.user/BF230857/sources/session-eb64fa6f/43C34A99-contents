@@ -163,13 +163,14 @@ initialize <- function(
 
   data <- list()
   data$s <- s
-  data$N <- 100000 #population size
+  data$N <- 1e9 #population size
   data$n_obs <- n # number of observed hosts, plus 1 (index case)
   data$n_bases <- n_bases
   data$snvs <- snvs
   data$eps <- 0.005 # Explore/exploit tradeoff for genotypes of new nodes
   data$p_move <- 0.6
   data$tau = 0.2
+  data$cutoff <- 1e-4 # Cutoff for applying Taylor approximation to the epi coalescent
   #data$n_cores <-
   # Number of subtrees to chop into is n_cores, as long as each subtree has at least 100 people
   data$n_subtrees <- n_subtrees

@@ -1,3 +1,22 @@
+# Recursive form of epi likelihood
+e_lik_recursive <- function(mcmc, data){
+  # Reverse-BFS order
+  ord <- rev(bfs(1, mcmc$h))
+
+  # Store tree LOG likelihood by node
+  llik <- rep(NA, mcmc$n)
+
+  # Loop over nodes to fill in likelihood
+  for (i in ord) {
+    kids <- which(mcmc$h == i)
+    llik[i] <- epi(exp(llik[kids]), mcmc$rho, mcmc$psi, i <= data$n_obs, data$N, mcmc$w[i], 10000)
+  }
+
+  return(llik[1])
+
+}
+
+
 # Compute epidemiological log likelihood
 
 e_lik <- function(mcmc, data){
@@ -21,11 +40,10 @@ e_lik <- function(mcmc, data){
         sum(dgamma(data$s[2:data$n_obs] - mcmc$t[2:data$n_obs], shape = mcmc$a_s, rate = mcmc$lambda_s, log = T)) +
 
         # Varilly Coalescent
-        sum(mcmc$d * log((1-mcmc$psi) / mcmc$psi) + lchoose(mcmc$d + mcmc$rho - 1, mcmc$d) - lchoose(data$N, mcmc$d)) +
-        sum(mcmc$w) * (log(mcmc$rho) + log((1-mcmc$psi) / mcmc$psi) - log(data$N))
+        # sum(mcmc$d * log((1-mcmc$psi) / mcmc$psi) + lchoose(mcmc$d + mcmc$rho - 1, mcmc$d) - lchoose(data$N, mcmc$d)) +
+        # sum(mcmc$w) * (log(mcmc$rho) + log((1-mcmc$psi) / mcmc$psi) - log(data$N))
+        e_lik_recursive(mcmc, data)
 
-        # sum(mcmc$rho * log(mcmc$psi) + log(sapply(mcmc$d, varilly, r = mcmc$rho, p = mcmc$psi, D = sum(mcmc$d), N = data$N))) +
-        # sum(mcmc$w) * (mcmc$rho * log(mcmc$psi) + log(varilly(r = mcmc$rho, p = mcmc$psi, d = 1, D = sum(mcmc$d), N = data$N)))
     )
   }
 }
