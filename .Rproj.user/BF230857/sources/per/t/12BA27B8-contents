@@ -1,5 +1,5 @@
 ### Execute large-scale outbreak reconstruction algorithm
-set.seed(226)
+set.seed(229)
 ## Libraries
 library(ape)
 library(Rcpp)
@@ -12,6 +12,7 @@ source("likelihood.R")
 source("moves.R")
 source("prior.R")
 source("subroutines.R")
+sourceCpp("cpp_subroutines.cpp")
 source("initialize.R")
 source("global_mcmc.R")
 source("local_mcmc.R")
@@ -22,11 +23,10 @@ init <- initialize()
 mcmc <- init[[1]]
 data <- init[[2]]
 
-#data$n_subtrees = 12
 data$n_local = 10
 data$sample_every = 10
-data$n_global = 10000
-data$N <- 100000
+data$n_global = 100
+mcmc$psi <- 0.1 / (1.5 + 0.1)
 
 ## Unhash these for run on pre-computed data and initial MCMC
 
@@ -53,7 +53,6 @@ run_mcmc <- function(mcmc, data){
 
     message(paste("Parallelizing over", length(mcmcs), "cores..."))
 
-    save(mcmcs, file = "mcmcs.RData")
 
     # Run MCMC in parallel over each subtree
     # Make the cluster
@@ -116,11 +115,12 @@ run_mcmc <- function(mcmc, data){
 
 
     message(paste(r, "global iterations complete. Log-likelihood =", round(liks[r], 2)))
-    #print(plot_current(mcmc$h, data$n_obs))
+    print(plot_current(mcmc$h, data$n_obs))
     #print(mcmc$w)
     print(mcmc$mu)
     print(mcmc$p)
     print(mcmc$lambda)
+    #print(mcmc$h)
     # print(mcmc$a_g)
 
     # if(r == 10){
@@ -133,7 +133,22 @@ run_mcmc <- function(mcmc, data){
   ))
 }
 
-#hehe <- run_mcmc(mcmc, data)
+rates <- c()
+times <- c()
+for (i in 1:mcmc$n) {
+  rates[i] <- ((length(mcmc$m01[[i]]) + length(mcmc$m01[[i]])) / data$n_bases)
+  times[i] <- (mcmc$t[i] - mcmc$t[mcmc$h[i]])
+}
+plot(times, rates)
+mean(rates/times, na.rm = T)
+plot(times, mcmc$w)
+
+n_snv <- c()
+for (i in 1:data$n_obs) {
+  n_snv[i] <- length(data$snvs[[i]]$snv$call)/data$n_bases/data$s[i]
+}
+
+hehe <- run_mcmc(mcmc, data)
 
 
 ### Sensitivity analysis

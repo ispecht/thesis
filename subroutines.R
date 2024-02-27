@@ -577,6 +577,20 @@ bfs <- function(i, h){
   return(out)
 }
 
+# Get generation of each node
+gen2 <- function(mcmc){
+  ord <- bfs(1,mcmc$h)
+  out <- rep(NA, mcmc$n)
+  for (i in ord) {
+    if(i == 1){
+      out[i] <- 0
+    }else{
+      out[i] <- out[mcmc$h[i]] + mcmc$w[i] + 1
+    }
+  }
+  return(out)
+}
+
 chop <- function(mcmc, data){
 
   # Initial tree (will change)

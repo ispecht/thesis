@@ -1,26 +1,26 @@
 {
-    "id": "320AEA01",
-    "path": "~/Desktop/thesis/likelihood.R",
-    "project_path": "likelihood.R",
+    "id": "12BA27B8",
+    "path": "~/Desktop/thesis/main.R",
+    "project_path": "main.R",
     "type": "r_source",
-    "hash": "0",
+    "hash": "3502620198",
     "contents": "",
     "dirty": false,
-    "created": 1707615743372.0,
+    "created": 1708850173754.0,
     "source_on_save": false,
-    "relative_order": 5,
+    "relative_order": 8,
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "44,35",
-        "scrollLine": "36"
+        "cursorPosition": "138,28",
+        "scrollLine": "121"
     },
     "folds": "",
-    "lastKnownWriteTime": 1708918571,
+    "lastKnownWriteTime": 1709014532,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1708918571535,
+    "last_content_update": 1709014532368,
     "read_only": false,
     "read_only_alternatives": []
 }

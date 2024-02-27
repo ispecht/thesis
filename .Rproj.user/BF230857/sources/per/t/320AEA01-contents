@@ -1,19 +1,17 @@
 # Recursive form of epi likelihood
-e_lik_recursive <- function(mcmc, data){
-  # Reverse-BFS order
-  ord <- rev(bfs(1, mcmc$h))
+coalescent <- function(mcmc, data){
+  gens <- gen(mcmc$h, mcmc$w)
 
-  # Store tree LOG likelihood by node
-  llik <- rep(NA, mcmc$n)
+  G <- max(gens)
+  qs <- get_qs(mcmc$n - 1 + sum(mcmc$w), data$N, G, mcmc$rho, mcmc$psi)
 
-  # Loop over nodes to fill in likelihood
-  for (i in ord) {
-    kids <- which(mcmc$h == i)
-    llik[i] <- epi(exp(llik[kids]), mcmc$rho, mcmc$psi, i <= data$n_obs, data$N, mcmc$w[i], 10000)
+  out <- 0
+  for (i in 1:mcmc$n) {
+    out <- out + e_lik_node(mcmc$d[i], mcmc$w[i], qs[(gens[i] + 1 - mcmc$w[i]):(gens[i] + 1)], mcmc$rho, mcmc$psi)
   }
 
-  return(llik[1])
-
+  out <- out + lchoose(data$N, mcmc$n - data$n_obs) + lfactorial(mcmc$n - data$n_obs) - (mcmc$n - 1)*log(data$N)
+  return(out)
 }
 
 
@@ -42,7 +40,7 @@ e_lik <- function(mcmc, data){
         # Varilly Coalescent
         # sum(mcmc$d * log((1-mcmc$psi) / mcmc$psi) + lchoose(mcmc$d + mcmc$rho - 1, mcmc$d) - lchoose(data$N, mcmc$d)) +
         # sum(mcmc$w) * (log(mcmc$rho) + log((1-mcmc$psi) / mcmc$psi) - log(data$N))
-        e_lik_recursive(mcmc, data)
+        coalescent(mcmc, data)
 
     )
   }
@@ -66,6 +64,10 @@ g_lik <- function(mcmc, data, i){
 
     # Evolutionary time
     delta_t <- mcmc$t[i] - g
+
+    if(i > data$n_obs){
+      delta_t <- mcmc$t[i] + log(1/sqrt(mcmc$p)) / mcmc$lambda - mcmc$t[mcmc$h[i]]
+    }
 
     # Evolutionary time from first downstream host of h to infection time of i, approx
     delta_t_prime <- delta_t * mcmc$w[i] / (mcmc$w[i] + 1)
@@ -95,10 +97,10 @@ g_lik <- function(mcmc, data, i){
         length(mcmc$mxy[[i]])
 
       # Likelihood from x = 0, y = 0 or x = 1, y = 1
-      out <- no_mut * (log(1/4 + (3/4)*exp(-(4*mcmc$mu/3) * delta_t)) + log_p_no_isnv) +
+      out <- no_mut * (log(1/4 + (3/4)*exp(-(4*mcmc$mu/3) * delta_t)) + ifelse(i<= data$n_obs, log_p_no_isnv, 0)) +
 
         # Likelihood from x = 0, y = 1 and x = 1, y = 0
-        (length(mcmc$m01[[i]]) + length(mcmc$m10[[i]])) * (log(1/4 - (1/4)*exp(-(4*mcmc$mu/3) * delta_t)) + log_p_no_isnv)
+        (length(mcmc$m01[[i]]) + length(mcmc$m10[[i]])) * (log(1/4 - (1/4)*exp(-(4*mcmc$mu/3) * delta_t)) + ifelse(i<= data$n_obs, log_p_no_isnv, 0))
 
       if(i <= data$n_obs){
         if(!is.null(data$snvs[[i]]$isnv)){
@@ -153,13 +155,13 @@ g_lik <- function(mcmc, data, i){
 
           out <- out +
             # Likelihood from 0 < x < 1, y = 0
-            length(mcmc$mx0[[i]]) * log_p_no_isnv +
+            length(mcmc$mx0[[i]]) * ifelse(i<= data$n_obs, log_p_no_isnv, 0) +
             sum(log(
               (1/4 + (3/4)*exp(-(4*mcmc$mu/3) * delta_t_prime))*(1 - freq_x0_anc) + (1/4 - (1/4)*exp(-(4*mcmc$mu/3) * delta_t_prime))*freq_x0_anc
             )) + sum(log(1 - (mcmc$b^(mcmc$w[i] + 1) * 2 * freq_x0_anc * (1 - freq_x0_anc) / 3^mcmc$w[i]))) + # probability we don't transmit successive split bottlenecks
 
             # Likelihood from 0 < x < 1, y = 1
-            length(mcmc$mx1[[i]]) * log_p_no_isnv +
+            length(mcmc$mx1[[i]]) * ifelse(i<= data$n_obs, log_p_no_isnv, 0) +
             sum(log(
               (1/4 + (3/4)*exp(-(4*mcmc$mu/3) * delta_t_prime))*(freq_x1_anc) + (1/4 - (1/4)*exp(-(4*mcmc$mu/3) * delta_t_prime))*(1 - freq_x1_anc)
             )) + sum(log(1 - (mcmc$b^(mcmc$w[i] + 1) * 2 * freq_x1_anc * (1 - freq_x1_anc) / 3^mcmc$w[i]))) # probability we don't transmit successive split bottlenecks
