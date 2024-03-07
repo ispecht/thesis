@@ -184,8 +184,8 @@ initialize <- function(
   mcmc <- list()
   mcmc$n <- n # number of tracked hosts
   mcmc$h <- rep(1, n) # ancestors; initialized to index case
-  mcmc$w <- rep(0, n) # edge weights; initialized to 0
-  mcmc$w[1] <- 0 # For convenience
+  # mcmc$w <- rep(0, n) # edge weights; initialized to 0
+  # mcmc$w[1] <- 0 # For convenience
   mcmc$h[1] <- NA
   mcmc$t <- s - 5 # time of contracting
   mcmc$m01 <- list() # fixed mutations added in each transmission link
@@ -224,8 +224,7 @@ initialize <- function(
           }
         }
 
-        # Should switch to doing this by reverse BFS order
-        mcmc$t[i] <- max_t - 5*(length(gens) - g)
+
 
         progress <- progress + 1
         setTxtProgressBar(pb,progress)
@@ -234,8 +233,15 @@ initialize <- function(
     }
     close(pb)
     mcmc$h <- init_h
-  }
 
+    # Initialize time of infection
+    ord <- rev(bfs(1, mcmc$h))
+    mcmc$t <- rep(NA, n)
+    mcmc$t[1] <- -5
+    for (i in ord) {
+      mcmc$t[i] <- min(c(data$s[i] - 5, mcmc$t[which(mcmc$h == i)] - 5))
+    }
+  }
 
   mcmc$b <- 0.05 # Probability bottleneck has size >1
   mcmc$a_g <- 5 # shape parameter of the generation interval
@@ -245,9 +251,12 @@ initialize <- function(
   mcmc$mu <- 1e-6 # mutation rate, sites/day
   mcmc$p <- 1e-6 # mutation rate, sites/cycle
   mcmc$v <- 1000 # burst size
-  mcmc$lambda <- 9 # expo growth rate of virions
+  mcmc$lambda <- 1 # expo growth rate of bursts
   mcmc$rho <- 0.1 # first parameter, NBin offspring distribution (overdispersion param)
   mcmc$psi <- 0.1 / (2.5 + 0.1) # second parameter, NBin offspring distribution (computed in terms of R0)
+
+  mcmc$w <- round(((mcmc$t - mcmc$t[mcmc$h]) / (mcmc$a_g / mcmc$lambda_g)) - 1)
+  mcmc$w[1] <- 0
 
   # Functions of MCMC params
   mcmc$d <- sapply(1:n, function(x){sum(mcmc$h[2:n] == x)}) # Node degrees

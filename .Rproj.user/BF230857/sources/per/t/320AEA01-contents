@@ -50,7 +50,7 @@ e_lik <- function(mcmc, data){
 
 g_lik <- function(mcmc, data, i){
 
-  if(mcmc$v < 0 | mcmc$mu < 0 | mcmc$p < 0 | mcmc$b < 0 | mcmc$b > 1 | mcmc$w[i] < 0){
+  if(mcmc$v < 0 | mcmc$mu < 0 | mcmc$p < 0 | mcmc$b < 0 | mcmc$lambda < 0 | mcmc$b > 1 | mcmc$w[i] < 0){
     -Inf
   }else{
     # Time of end of expo growth phase for ancestor of i, which is when we reach k = 1/sqrt(p) virions
@@ -58,15 +58,16 @@ g_lik <- function(mcmc, data, i){
 
     #g <- mcmc$t[mcmc$h[i]] - log(mcmc$p) / (2*log(mcmc$mu / mcmc$p))
     #g <- mcmc$t[mcmc$h[i]] + (mcmc$p *(-(log(mcmc$p)/2) + log(mcmc$v)))/(mcmc$mu* log(mcmc$v))
-    #mcmc$p <- mcmc$mu / mcmc$lambda
+    #mcmc$p <- mcmc$mu/mcmc$lambda
 
-    g <- mcmc$t[mcmc$h[i]] + log(1/sqrt(mcmc$p)) / mcmc$lambda
+    g <- mcmc$t[mcmc$h[i]] + log(1/sqrt(mcmc$p)) / mcmc$lambda / log(1000) + 1/mcmc$lambda
+    #g <- mcmc$t[mcmc$h[i]] + 1
 
     # Evolutionary time
     delta_t <- mcmc$t[i] - g
 
     if(i > data$n_obs){
-      delta_t <- mcmc$t[i] + log(1/sqrt(mcmc$p)) / mcmc$lambda - mcmc$t[mcmc$h[i]]
+      delta_t <- mcmc$t[i] - mcmc$t[mcmc$h[i]]
     }
 
     # Evolutionary time from first downstream host of h to infection time of i, approx
@@ -94,7 +95,8 @@ g_lik <- function(mcmc, data, i){
         length(mcmc$m1y[[i]]) -
         length(mcmc$mx0[[i]]) -
         length(mcmc$mx1[[i]]) -
-        length(mcmc$mxy[[i]])
+        length(mcmc$mxy[[i]]) #-
+        #length(data$filters$common)
 
       # Likelihood from x = 0, y = 0 or x = 1, y = 1
       out <- no_mut * (log(1/4 + (3/4)*exp(-(4*mcmc$mu/3) * delta_t)) + ifelse(i<= data$n_obs, log_p_no_isnv, 0)) +

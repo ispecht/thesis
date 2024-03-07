@@ -1,5 +1,5 @@
 ### Execute large-scale outbreak reconstruction algorithm
-set.seed(229)
+set.seed(232)
 ## Libraries
 library(ape)
 library(Rcpp)
@@ -19,14 +19,15 @@ source("local_mcmc.R")
 
 ## Unhash these for regular run
 
-init <- initialize()
+init <- initialize(init_mst = T)
+#init <- initialize()
 mcmc <- init[[1]]
 data <- init[[2]]
 
 data$n_local = 10
 data$sample_every = 10
-data$n_global = 100
-mcmc$psi <- 0.1 / (1.5 + 0.1)
+data$n_global = 1000
+#mcmc$psi <- 0.1 / (1.5 + 0.1)
 
 ## Unhash these for run on pre-computed data and initial MCMC
 
@@ -119,7 +120,9 @@ run_mcmc <- function(mcmc, data){
     #print(mcmc$w)
     print(mcmc$mu)
     print(mcmc$p)
-    print(mcmc$lambda)
+    print(length(unlist(mcmc$m01)) + length(unlist(mcmc$m10)))
+    #print(data$s - mcmc$t[1:data$n_obs])
+    #print(mcmc$lambda)
     #print(mcmc$h)
     # print(mcmc$a_g)
 
@@ -135,18 +138,23 @@ run_mcmc <- function(mcmc, data){
 
 rates <- c()
 times <- c()
-for (i in 1:mcmc$n) {
-  rates[i] <- ((length(mcmc$m01[[i]]) + length(mcmc$m01[[i]])) / data$n_bases)
+for (i in 2:mcmc$n) {
+  rates[i] <- ((length(mcmc$m01[[i]]) + length(mcmc$m10[[i]])) / data$n_bases)
   times[i] <- (mcmc$t[i] - mcmc$t[mcmc$h[i]])
 }
 plot(times, rates)
 mean(rates/times, na.rm = T)
-plot(times, mcmc$w)
+sum(rates, na.rm = T) / sum(times, na.rm = T)
+plot(times, mcmc$w+1)
+mean(times/ (mcmc$w + 1), na.rm = T)
 
 n_snv <- c()
+n_isnv <- c()
 for (i in 1:data$n_obs) {
   n_snv[i] <- length(data$snvs[[i]]$snv$call)/data$n_bases/data$s[i]
+  n_isnv[i] <- length(data$snvs[[i]]$isnv$call)
 }
+mean(n_snv, na.rm = T)
 
 hehe <- run_mcmc(mcmc, data)
 

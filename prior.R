@@ -73,7 +73,7 @@ prior <- function(mcmc, priors = NULL){
 
   if(is.null(priors$lambda)){
     priors$lambda <- function(x){
-      dnorm(x, 8.5, 1, log = T)
+      dnorm(x, 2, 1, log = T)
     }
   }
 
