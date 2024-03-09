@@ -326,3 +326,4 @@ for (i in 0:3) {
 combined <- plot_grid(plots[[1]], plots[[2]], plots[[3]], plots[[4]], labels = LETTERS)
 
 ggsave(combined, file = "./figs/simulations.pdf", width = 6.5, height = 6.5)
+ggsave(combined, file = "./figs/simulations.png", width = 6.5, height = 6.5)

@@ -27,21 +27,23 @@ moves$w <- function(mcmc, data){
   prop$g_lik[i] <- g_lik(prop, data, i)
   prop$prior <- prior(prop)
 
+  if(data$exact_coalescent){
+    # With new coalescent:
+    hastings <- 0
+  }else{
+    # Here the Hastings ratio is not 1, because we're imagining that the newly-added / deleted intermediate hosts are labeled.
+    if(change > 0){
+      # If added new hosts, P(new to old) is probability of correctly selecting the new hosts to delete
+      # P(old to new) is probability choosing the correct new hosts to add from larger population
+      hastings <- -
+        (-lchoose(data$N, change))  # Choose from N, order them, and place them on the edge
+    }else if(change < 0){
+      hastings <- -lchoose(data$N, -change)
+    }else{
+      hastings <- 0
+    }
+  }
 
-  # Here the Hastings ratio is not 1, because we're imagining that the newly-added / deleted intermediate hosts are labeled.
-  # if(change > 0){
-  #   # If added new hosts, P(new to old) is probability of correctly selecting the new hosts to delete
-  #   # P(old to new) is probability choosing the correct new hosts to add from larger population
-  #   hastings <- -
-  #     (-lchoose(data$N, change))  # Choose from N, order them, and place them on the edge
-  # }else if(change < 0){
-  #   hastings <- -lchoose(data$N, -change)
-  # }else{
-  #   hastings <- 0
-  # }
-
-  # With new coalescent:
-  hastings <- 0
 
   if(log(runif(1)) < prop$e_lik + sum(prop$g_lik[-1]) + prop$prior - mcmc$e_lik - sum(mcmc$g_lik[-1]) - mcmc$prior + hastings){
     return(prop)
@@ -98,19 +100,25 @@ moves$w_t <- function(mcmc, data){
     prop$t[i] <- mcmc$t[h] + (max_t - mcmc$t[h]) * rbeta(1, prop$w[i] + 1, max_dist - prop$w[i] + 1)
 
     ## Hastings ratio
-    hastings <- 0
-    # if(length(js) > 1){
-    #   if(delta > 0){
-    #     # In this case, we lose weight from the edges leading into the js, so:
-    #     hastings <- hastings - lchoose(data$N, delta) * (length(js) - 1)  # P(new -> old): add the correct nodes from the population onto each of the #[js] - 1 edges
-    #        # P(old -> new): delete the correct nodes from js[2], js[3], ...
-    #
-    #   }
-    #   if(delta < 0){
-    #     hastings <- hastings + # P(new -> old): delete the correct nodes from js[2], js[3], ...
-    #       lchoose(data$N, -delta) * (length(js) - 1)  # P(old -> new): add the correct nodes from the population to each of js[2], js[3], ...
-    #   }
-    # }
+    if(data$exact_coalescent){
+      hastings <- 0
+    }else{
+      hastings <- 0
+      if(length(js) > 1){
+        if(delta > 0){
+          # In this case, we lose weight from the edges leading into the js, so:
+          hastings <- hastings - lchoose(data$N, delta) * (length(js) - 1)  # P(new -> old): add the correct nodes from the population onto each of the #[js] - 1 edges
+             # P(old -> new): delete the correct nodes from js[2], js[3], ...
+
+        }
+        if(delta < 0){
+          hastings <- hastings + # P(new -> old): delete the correct nodes from js[2], js[3], ...
+            lchoose(data$N, -delta) * (length(js) - 1)  # P(old -> new): add the correct nodes from the population to each of js[2], js[3], ...
+        }
+      }
+    }
+
+
 
     # Proposal density for the beta draw
     hastings <- hastings + dbeta((mcmc$t[i] - mcmc$t[h]) / (max_t - mcmc$t[h]), mcmc$w[i] + 1, max_dist - mcmc$w[i] + 1, log = T) - # P(new -> old)
@@ -122,57 +130,6 @@ moves$w_t <- function(mcmc, data){
     prop$prior <- prior(prop)
 
     if(log(runif(1)) < prop$e_lik + sum(prop$g_lik[-1]) + prop$prior - mcmc$e_lik - sum(mcmc$g_lik[-1]) - mcmc$prior + hastings){
-      return(prop)
-    }else{
-      return(mcmc)
-    }
-  }
-}
-
-## Update t_i and w_i and w_j's simultaneously, where j is the child of i, to achieve similar mutation rates along branches
-moves$rebalance <- function(mcmc, data){
-  # Choose random host with ancestor and children
-  choices <- (2:mcmc$n)[which(mcmc$d[2:mcmc$n] > 0)]
-  if(length(choices) == 0){
-    return(mcmc)
-  }else{
-    prop <- mcmc
-    i <- ifelse(length(choices) == 1, choices, sample(choices, 1))
-    js <- which(mcmc$h == i)
-
-    # Number of mutations h to i
-    mut_before <- length(mcmc$m01[i]) + length(mcmc$m10[i])
-
-    # Average number of mutations after
-    mut_after <- (length(unlist(mcmc$m01[js])) + length(unlist(mcmc$m10[js])))/length(js)
-
-    # Now sample the time i contracts the disease
-    max_t <- min(mcmc$t[js])
-    min_t <- mcmc$t[mcmc$h[i]]
-
-    prop$t[i] <- min_t + (max_t - min_t) * rbeta(1, mut_before + 1, mut_after + 1)
-
-    # Sample new edge weight as Poisson
-    prop$w[i] <- rpois(1, (prop$t[i] - min_t) / (mcmc$a_g / mcmc$lambda_g))
-    prop$w[js] <- rpois(length(js), (prop$t[js] - prop$t[i]) / (mcmc$a_g / mcmc$lambda_g))
-
-
-    ## Hastings ratio
-    hastings <- dbeta((mcmc$t[i] - min_t) / (max_t - min_t), mut_before + 1, mut_after + 1, log = T) -
-      dbeta((prop$t[i] - min_t) / (max_t - min_t), mut_before + 1, mut_after + 1, log = T) +
-      dpois(mcmc$w[i], (mcmc$t[i] - min_t) / (mcmc$a_g / mcmc$lambda_g), log = T) +
-      sum(dpois(mcmc$w[js], (mcmc$t[js] - mcmc$t[i]) / (mcmc$a_g / mcmc$lambda_g), log = T)) -
-      dpois(prop$w[i], (prop$t[i] - min_t) / (mcmc$a_g / mcmc$lambda_g), log = T) -
-      sum(dpois(prop$w[js], (prop$t[js] - prop$t[i]) / (mcmc$a_g / mcmc$lambda_g), log = T))
-
-
-    prop$e_lik <- e_lik(prop, data)
-    update <- c(i, js) # For which hosts must we update the genomic likelihood?
-    prop$g_lik[update] <- sapply(update, g_lik, mcmc = prop, data = data)
-    prop$prior <- prior(prop)
-
-    if(log(runif(1)) < prop$e_lik + sum(prop$g_lik[-1]) + prop$prior - mcmc$e_lik - sum(mcmc$g_lik[-1]) - mcmc$prior + hastings){
-      #print("yay")
       return(prop)
     }else{
       return(mcmc)
@@ -426,15 +383,19 @@ moves$h_step <- function(mcmc, data, upstream = TRUE, resample_t = FALSE, resamp
         update <- c(update, which(mcmc$h == i))
       }
 
-      hastings <- 0
-      # if(change < 0){
-      #   hastings <- hastings - lchoose(data$N, -change)  # P(new -> old): choose [change] people to add back onto the edge
-      #     # P(old -> new): choose [change] people to delete from the edge
-      # }
-      # if(change > 0){
-      #   hastings <- hastings - # P(new -> old): choose [change] people to delete from the edge
-      #     (-lchoose(data$N, change))   # P(old -> new): choose [change] people to add back onto the edge
-      # }
+      if(data$exact_coalescent){
+        hastings <- 0
+      }else{
+        hastings <- 0
+        if(change < 0){
+          hastings <- hastings - lchoose(data$N, -change)  # P(new -> old): choose [change] people to add back onto the edge
+          # P(old -> new): choose [change] people to delete from the edge
+        }
+        if(change > 0){
+          hastings <- hastings - # P(new -> old): choose [change] people to delete from the edge
+            (-lchoose(data$N, change))   # P(old -> new): choose [change] people to add back onto the edge
+        }
+      }
 
       hastings <- hastings + log(length(children)) # P(new -> old): 1; P(old -> new): choose from among #[children] people to be h_new
 
@@ -487,15 +448,19 @@ moves$h_step <- function(mcmc, data, upstream = TRUE, resample_t = FALSE, resamp
         update <- c(update, which(mcmc$h == i))
       }
 
-      hastings <- 0
-      # if(change < 0){
-      #   hastings <- hastings - lchoose(data$N, -change)   # P(new -> old): choose [change] people to add back onto the edge
-      #      # P(old -> new): choose [change] people to delete from the edge
-      # }
-      # if(change > 0){
-      #   hastings <- hastings  - # P(new -> old): choose [change] people to delete from the edge
-      #     (-lchoose(data$N, change)) # P(old -> new): choose [change] people to add back onto the edge
-      # }
+      if(data$exact_coalescent){
+        hastings <- 0
+      }else{
+        hastings <- 0
+        if(change < 0){
+          hastings <- hastings - lchoose(data$N, -change)   # P(new -> old): choose [change] people to add back onto the edge
+             # P(old -> new): choose [change] people to delete from the edge
+        }
+        if(change > 0){
+          hastings <- hastings  - # P(new -> old): choose [change] people to delete from the edge
+            (-lchoose(data$N, change)) # P(old -> new): choose [change] people to add back onto the edge
+        }
+      }
 
       hastings <- hastings - log(length(children)) # P(new -> old): choose from among #[children] people to be h_new; P(old -> new): 1
 
@@ -749,19 +714,22 @@ moves$create <- function(mcmc, data, create = T, upstream = T){
           log_p <- geno[[2]]
 
           ## Hastings ratio
-          hastings <- 0
-
-          # Delta is change in number of hosts along edges into j2s
-          # if(upstream){
-          #   delta <- dist + 1
-          #   # In this case, we lose weight from the edges leading into the j2s, so:
-          #   hastings <- hastings - lchoose(data$N, delta) * length(j2s)  # P(new -> old): add the correct nodes from the population onto each of the #[js] - 1 edges
-          #      # P(old -> new): delete the correct nodes from js[2], js[3], ...
-          # }else{
-          #   delta <- prop$w[j1] + 1
-          #   hastings <- hastings  + # P(new -> old): delete the correct nodes from js[2], js[3], ...
-          #     lchoose(data$N, delta) * length(j2s)  # P(old -> new): add the correct nodes from the population to each of js[2], js[3], ...
-          # }
+          if(data$exact_coalescent){
+            hastings <- 0
+          }else{
+            # Delta is change in number of hosts along edges into j2s
+            hastings <- 0
+            if(upstream){
+              delta <- dist + 1
+              # In this case, we lose weight from the edges leading into the j2s, so:
+              hastings <- hastings - lchoose(data$N, delta) * length(j2s)  # P(new -> old): add the correct nodes from the population onto each of the #[js] - 1 edges
+                 # P(old -> new): delete the correct nodes from js[2], js[3], ...
+            }else{
+              delta <- prop$w[j1] + 1
+              hastings <- hastings  + # P(new -> old): delete the correct nodes from js[2], js[3], ...
+                lchoose(data$N, delta) * length(j2s)  # P(old -> new): add the correct nodes from the population to each of js[2], js[3], ...
+            }
+          }
 
           hastings <- hastings -
             length(j2s) * log(data$p_move) - (length(kids) - length(j2s)) * log(1 - data$p_move) + # P(old -> new): Probability of choosing kids to move onto i
@@ -836,20 +804,23 @@ moves$create <- function(mcmc, data, create = T, upstream = T){
 
 
         ## Hastings ratio
-        hastings <- 0
+        if(data$exact_coalescent){
+          hastings <- 0
+        }else{
+          hastings <- 0
+          #Delta is change in number of hosts along edges into j2s
+          if(upstream){
+            delta <- mcmc$w[i] + 1
+            # In this case, we lose weight from the edges leading into the j2s, so:
+            hastings <- hastings  + # P(new -> old): delete the correct nodes from js[2], js[3], ...
+              lchoose(data$N, delta) * length(j2s)  # P(old -> new): add the correct nodes from the population onto each of the #[js] - 1 edges
 
-        # Delta is change in number of hosts along edges into j2s
-        # if(upstream){
-        #   delta <- mcmc$w[i] + 1
-        #   # In this case, we lose weight from the edges leading into the j2s, so:
-        #   hastings <- hastings  + # P(new -> old): delete the correct nodes from js[2], js[3], ...
-        #     lchoose(data$N, delta) * length(j2s)  # P(old -> new): add the correct nodes from the population onto each of the #[js] - 1 edges
-        #
-        # }else{
-        #   delta <- mcmc$w[j1] + 1
-        #   hastings <- hastings - lchoose(data$N, delta) * length(j2s)  # P(new -> old): add the correct nodes from the population to each of js[2], js[3], ...
-        #      # P(old -> new): delete the correct nodes from js[2], js[3], ...
-        # }
+          }else{
+            delta <- mcmc$w[j1] + 1
+            hastings <- hastings - lchoose(data$N, delta) * length(j2s)  # P(new -> old): add the correct nodes from the population to each of js[2], js[3], ...
+            # P(old -> new): delete the correct nodes from js[2], js[3], ...
+          }
+        }
 
         hastings <- hastings +
           length(j2s) * log(data$p_move) + (length(kids) - length(j2s)) * log(1 - data$p_move) - # P(new -> old): Probability of choosing kids to move onto i

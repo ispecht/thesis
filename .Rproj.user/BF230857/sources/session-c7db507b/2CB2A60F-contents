@@ -77,7 +77,7 @@ run_mcmc <- function(mcmc, data, noisy = F){
     if(noisy){
       message(paste(r, "global iterations complete. Log-likelihood =", round(liks[r], 2)))
       print(plot_current(mcmc$h, data$n_obs))
-      print(mcmc$w)
+      #print(mcmc$w)
        print(mcmc$mu)
        print(mcmc$p)
        print(mcmc$rho * (1 - mcmc$psi) / mcmc$psi)

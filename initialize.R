@@ -6,6 +6,7 @@ initialize <- function(
     sample_every = 50, # Per how many local moves do we draw one sample? Should be a divisor of n_local
     init_mst = FALSE, # Should we initialize to a minimum spanning tree? Bad idea if dataset is large
     init_ancestry = FALSE, # Specify the starting ancestry
+    exact_coalescent = TRUE, # Are we using the exact (non-overlapping) coalescent?
     record = c("n", "h", "w", "t", "b", "a_g", "lambda_g", "a_s", "lambda_s", "mu", "p", "v", "lambda", "rho", "psi"), # Which aspects of mcmc do we want to record
     filters = NULL,
     check_names = TRUE # Should we check to make sure all of the names in the FASTA match the names of the VCFs and dates?
@@ -170,7 +171,7 @@ initialize <- function(
   data$eps <- 0.005 # Explore/exploit tradeoff for genotypes of new nodes
   data$p_move <- 0.6
   data$tau = 0.2
-  data$cutoff <- 1e-4 # Cutoff for applying Taylor approximation to the epi coalescent
+  data$exact_coalescent <- exact_coalescent # Are we using the exact (non-overlapping) coalescent?
   #data$n_cores <-
   # Number of subtrees to chop into is n_cores, as long as each subtree has at least 100 people
   data$n_subtrees <- n_subtrees

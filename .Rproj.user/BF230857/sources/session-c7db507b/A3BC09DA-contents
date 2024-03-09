@@ -5,14 +5,14 @@ source("main.R")
 
 ## Unhash these for regular run
 
-init <- initialize(init_mst = T, exact_coalescent = F)
+init <- initialize(init_mst = T)
 #init <- initialize()
 mcmc <- init[[1]]
 data <- init[[2]]
 
 data$n_local = 10
 data$sample_every = 10
-data$n_global = 1000
+data$n_global = 100000
 
 ## Unhash these for run on pre-computed data and initial MCMC
 

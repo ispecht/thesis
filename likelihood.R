@@ -42,7 +42,13 @@ e_lik <- function(mcmc, data){
         # sum(mcmc$w) * (log(mcmc$rho) + log((1-mcmc$psi) / mcmc$psi) - log(data$N)) +
         # lchoose(data$N, mcmc$n - data$n_obs + sum(mcmc$w)) + lfactorial(mcmc$n - data$n_obs + sum(mcmc$w))
 
-        coalescent(mcmc, data)
+        ifelse(
+          data$exact_coalescent,
+          coalescent(mcmc, data),
+          sum(mcmc$d * log((1-mcmc$psi) / mcmc$psi) + lchoose(mcmc$d + mcmc$rho - 1, mcmc$d) - lchoose(data$N, mcmc$d)) +
+          sum(mcmc$w) * (log(mcmc$rho) + log((1-mcmc$psi) / mcmc$psi) - log(data$N))
+        )
+
 
     )
   }
