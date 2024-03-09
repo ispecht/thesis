@@ -1,0 +1,26 @@
+{
+    "id": "A6B282C3",
+    "path": "~/Desktop/thesis/simulation.R",
+    "project_path": "simulation.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": true,
+    "created": 1709926729484.0,
+    "source_on_save": false,
+    "relative_order": 8,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "325,44",
+        "scrollLine": "303"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1709943849,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1709943898485,
+    "read_only": false,
+    "read_only_alternatives": []
+}

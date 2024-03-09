@@ -1,0 +1,234 @@
+# MIT License
+#
+# Copyright (c) 2023 Ivan Specht
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+#   The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+### Simulate outbreak
+
+set.seed(211)
+
+library(stringr)
+library(ape)
+
+setwd("~/Desktop/thesis")
+source("main.R")
+
+### Generate transmission network
+
+# Epi params
+a_g <- 5
+lambda_g <- 1
+a_s <- 5
+lambda_s <- 1
+mu <- 2e-6
+p <- 1e-6
+v <- 1000 # virions produced per cycle
+b <- 0.05 # probability bottleneck has size 2
+k <- round(1/sqrt(p)) # number of virions at end of exponential growth phase
+N_bases <- 29903 # length of viral genome
+rho <- 0.5
+psi <- 0.5 / (1.5 + 0.5)
+N <- 1e9
+
+# Probability of a mutation in exponential growth phase
+p_growth_mut <- 1 - (1-p)^k
+
+# Number of generations to simulate
+G <- 4
+
+
+
+run_sim <- function(lol){
+
+  h <- NA
+  t <- -5
+  s <- 0
+
+  # Proportions of particles that are mutated
+  props <- list(rep(0, N_bases))
+
+  for (g in 1:G) {
+    # Who's in the current generation?
+    if(g == 1){
+      genr <- 1
+    }else{
+      genr <- which(h %in% genr)
+    }
+
+    # Loop over people in current generation
+    for (i in genr) {
+      # Inherited genotype
+      if(i != 1){
+        # Proportions of inherited mutations
+        anc_props <- props[[h[i]]]
+
+        # Evolve this per JC
+        delta_t <- t[i] - (t[h[i]] + log(1/sqrt(p)) / (mu / p) / log(v))
+
+        # Evolved anc_props
+        anc_props[anc_props == 0] <- 1/4 - (1/4)*exp((-4/3)*mu*delta_t)
+        anc_props[anc_props == 1] <- 1 - (1/4 - (1/4)*exp((-4/3)*mu*delta_t))
+
+        props[[i]] <- rep(0, N_bases)
+
+        if(runif(1) < b){
+          # Which sites have a split bottleneck?
+          split <- which(runif(N_bases) < 2*anc_props*(1 - anc_props))
+          props[[i]][split] <- runif(length(split))
+
+          # Which sites inherit the alternate allele?
+          alt <- which(runif(N_bases) < anc_props^2 / (anc_props^2 + (1 - anc_props)^2))
+          alt <- setdiff(alt, split)
+        }else{
+          split <- integer(0)
+          alt <- which(runif(N_bases) < anc_props)
+        }
+
+        print(alt)
+
+        # Which sites pick up an iSNV?
+        isnv <- which(runif(N_bases) < p_growth_mut)
+        isnv <- setdiff(isnv, split)
+
+        isnv_props <- rbeta(length(isnv), 1, sample(1:k, length(isnv), replace = T))
+
+        props[[i]][setdiff(isnv, alt)] <- isnv_props[!(isnv %in% alt)]
+        props[[i]][intersect(isnv, alt)] <- 1 - isnv_props[isnv %in% alt]
+        props[[i]][setdiff(alt, isnv)] <- 1
+
+
+
+      }
+
+      if(g != G){
+        # Generate kids
+        #n_kids <- ifelse(runif(1) < 0.1, 2, 1)
+        n_kids <- rnbinom(1, rho, psi)
+        #n_kids <- 1
+
+        if(n_kids > 0){
+          # What are their indices?
+          who <- (length(h) + 1):(length(h) + n_kids)
+
+          h[who] <- i
+          t[who] <- t[i] + pmax(rgamma(length(who), a_g, lambda_g), log(1/sqrt(p)) / (mu / p) / log(v) + 1/2) # To ensure positive evolutionary time
+          s[who] <- t[who] + rgamma(length(who), a_s, lambda_s)
+
+        }
+      }
+    }
+  }
+
+  # Number of people
+  n <- length(s)
+
+  names <- paste(1:n)
+  names <- str_pad(names, 3, pad = "0")
+  names <- paste0("sim_", names)
+
+  # For writing files, move into new directory
+  dirname <- paste0("newdir_", lol)
+  dir.create(paste0("./", dirname), showWarnings = F)
+  setwd(paste0("./", dirname))
+  dir.create("./input_data", showWarnings = F)
+  dir.create("./input_data/vcf", showWarnings = F)
+
+  # Write fastas
+  cons <- list()
+  for (i in genr) {
+    newseq <- rep("A", N_bases)
+    newseq[props[[i]] > 1/2] <- "C"
+    cons <- c(cons, list(newseq))
+  }
+
+  names(cons) <- names[genr]
+  write.dna(cons, file = "./input_data/aligned.fasta", format = "fasta")
+
+  # Write ref genome
+  ref <- list(rep("A", N_bases))
+  names(ref) <- "ref"
+  write.dna(ref, file = "./input_data/ref.fasta", format = "fasta")
+
+  # Write test date table
+  dates <- cbind(names(cons), round(s[genr]))
+  write.csv(dates, "./input_data/date.csv", row.names = F, quote = F)
+
+  # First, remove existing vcfs, just in case
+  do.call(file.remove, list(list.files("./input_data/vcf/", full.names = TRUE)))
+
+  # Write VCFs
+  for (i in genr) {
+    # Which positions have iSNVs in read data?
+    pos <- which(props[[i]] > 0 & props[[i]] < 1)
+    af <- props[[i]][pos]
+    alt_reads <- round(10000 * af)
+    info <- paste0(
+      "DP=",
+      10000,
+      ";AF=",
+      format(round(alt_reads / 10000, 6), scientific = F),
+      ";SB=0;DP4=0,", # strand bias wouldn't actually be 0 here, but assuming no strand bias in synthetic data
+      10000 - alt_reads,
+      ",0,",
+      alt_reads
+    )
+    vcf <- data.frame(
+      CHROM = "ref",
+      POS = pos,
+      ID = ".",
+      REF = "A",
+      ALT = "C",
+      QUAL = 5000,
+      FILTER = "PASS",
+      INFO = info
+    )
+
+    write.table(vcf, file = paste0("./input_data/vcf/", names[i], ".vcf"), col.names = F, row.names = F)
+  }
+
+  ### Reconstruction
+
+  init <- initialize()
+  #init <- initialize()
+  mcmc <- init[[1]]
+  data <- init[[2]]
+
+  data$n_local = 10
+  data$sample_every = 10
+  data$n_global = 1000
+
+  mcmc$rho <- 10
+  mcmc$psi <- 10 / (1 + 10)
+
+  output <- run_mcmc(mcmc, data, noisy = T)
+
+
+
+}
+
+
+
+
+
+
+
+
+
+

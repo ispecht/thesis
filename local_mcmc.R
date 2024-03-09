@@ -18,7 +18,8 @@ local_mcmc <- function(mcmc, data){
     mcmc <- moves$t(mcmc, data)
 
     # Move 13
-    mcmc <- moves$w_t(mcmc, data)
+    #mcmc <- moves$w_t(mcmc, data)
+    mcmc <- moves$rebalance(mcmc, data)
 
     # Move 14
     mcmc <- moves$h_step(mcmc, data)
