@@ -1,9 +1,12 @@
 ### Visualize MCMC output
 
 library(ggplot2)
+library(cowplot)
 library(ggraph)
 library(igraph)
 library(ape)
+
+source("subroutines.R")
 
 # Load in results
 load("output.RData")
@@ -12,15 +15,19 @@ mus <- c()
 ps <- c()
 bs <- c()
 vs <- c()
-for (i in 1:10000) {
+for (i in 1001:10000) {
   mus[i] <- output[[i]]$mu
   ps[i] <- output[[i]]$p
   bs[i] <- output[[i]]$b
   vs[i] <- output[[i]]$v
 }
+mus <- mus[!is.na(mus)]
+ps <- ps[!is.na(ps)]
+bs <- bs[!is.na(bs)]
 
 h <- output[[10000]]$h
 t <- output[[10000]]$t
+w <- output[[10000]]$w
 n <- length(h)
 
 
@@ -32,6 +39,8 @@ meta <- read.csv("~/Desktop/input_data_huge/metadata.csv")
 lin <- meta$Sequence.Nextclade.Clade[match(names, meta$case)]
 lineage <- rep("Unsampled", n)
 lineage[2:(length(lin) + 1)] <- lin
+
+n_obs <- length(cons) + 1
 
 # Data cleaning
 lineage[lineage == "20C"] <- "20C (Epsilon)"
@@ -192,21 +201,119 @@ for (i in 1:n) {
   }
 }
 
-# vertical segments
-
 big <- ggplot() +
-  geom_segment(mapping = aes(x = t[h], xend = t, y = thetas, yend = thetas), linewidth = 0.1) +
-  geom_segment(mapping = aes(x = xs, xend = xs, y = ystart, yend = yend), linewidth = 0.1) +
-  geom_point(mapping= aes(x = df_standard$x, y = df_standard$y, color = df_standard$lineage), size = 0.5) +
+  geom_segment(mapping = aes(x = t[h], xend = t, y = thetas, yend = thetas), linewidth = 0.05) +
+  geom_segment(mapping = aes(x = xs, xend = xs, y = ystart, yend = yend), linewidth = 0.05) +
+  geom_point(mapping= aes(x = df_standard$x, y = df_standard$y, color = df_standard$lineage), alpha = 0.5, size = 0.01) +
   scale_color_manual(values = colors, name = "Lineage") +
   xlab("Evolutionary Time (days)") +
   scale_y_continuous(breaks = NULL) +
   theme_minimal() +
-  theme(axis.title.y = element_blank())
+  theme(
+    axis.title.y = element_blank(),
+    legend.position=c(0.85, 0.65)
+  ) +
+  guides(color = guide_legend(override.aes = list(size = 1, alpha = 1)))
 
 big
 
-ggsave("./figs/big.pdf", width = 20, height = 400, limitsize = F)
+ggsave("./figs/mass_network.pdf", width = 6.5, height = 8, limitsize = F)
+ggsave("./figs/mass_network.png", width = 6.5, height = 8, limitsize = F)
+
+
+mu_hist <- ggplot(data.frame(x = mus), aes(x = x)) +
+  geom_histogram(aes(y=after_stat(density)), bins = 10, color = "white", fill = "grey") +
+  xlab(paste("Value of mu")) +
+  ylab("Probability Density") +
+  #xlim(2.1e-6, 2.4e-6) +
+  scale_x_continuous(breaks = signif(seq(min(mus), max(mus), by = (max(mus) - min(mus)) / 3) , 3)) +
+  theme_minimal() +
+  theme(plot.margin = margin(t = 0.2, r = 0.3, b = 0, l = 0, unit = "in"))
+p_hist <- ggplot(data.frame(x = ps), aes(x = x)) +
+  geom_histogram(aes(y=after_stat(density)), bins = 10, color = "white", fill = "grey") +
+  xlab(paste("Value of p")) +
+  ylab("Probability Density") +
+  scale_y_continuous(labels = function(x) format(x, scientific = T, digits = 2)) +
+  scale_x_continuous(breaks = signif(seq(min(ps), max(ps), by = (max(ps) - min(ps)) / 3) , 3)) +
+  theme_minimal() +
+  theme(plot.margin = margin(t = 0.2, r = 0.3, b = 0, l = 0, unit = "in"))
+b_hist <- ggplot(data.frame(x = bs), aes(x = x)) +
+  geom_histogram(aes(y=after_stat(density)), breaks = seq(0,0.01, 0.001), color = "white", fill = "grey") +
+  xlab(paste("Value of b")) +
+  ylab("Probability Density") +
+  scale_x_continuous(breaks = signif(seq(0, 0.01, by = 0.01/3) , 3), labels = function(x) format(x, scientific = T, digits = 2)) +
+  theme_minimal() +
+  theme(plot.margin = margin(t = 0.2, r = 0.3, b = 0, l = 0, unit = "in"))
+
+hists <- plot_grid(
+  mu_hist, p_hist, b_hist,
+  ncol = 3,
+  labels = "AUTO"
+)
+
+ggsave("./figs/mass_hists.pdf", width = 8, height = 3, limitsize = F)
+ggsave("./figs/mass_hists.png", width = 8, height = 3, limitsize = F)
+
+## Next figure: genetic distance between case and ancestor
+dists <- c()
+times <- c()
+gens <- c()
+for (i in 2:n) {
+  if(h[i] <= n_obs & i <= n_obs){
+    dists[i] <- dist.dna(cons[c(i-1, h[i] - 1)], "N")[1]
+  }
+  times[i] <- t[i] - t[h[i]]
+  gens[i] <- w[i] + 1
+
+  if(i %% 100 == 0){
+    print(i)
+  }
+}
+
+hist(dists[w == 0])
+
+# Is facility of ancestor same?
+anc_fac <- c()
+for (i in 2:n) {
+  if(h[i] <= n_obs & i <= n_obs){
+    anc_fac[i] <- meta$Practice.Name[match(names[i-1], meta$case)] == meta$Practice.Name[match(names[h[i]-1], meta$case)]
+  }
+}
+
+mean(anc_fac, na.rm = T)
+
+# Okay, and what if we randomly assigned each person someone of the same lineage who was sampled 0-10 days before?
+# Facility by case
+facs <- meta$Practice.Name[match(names, meta$case)]
+lins <- meta$pango_lineage_full[match(names, meta$case)]
+dats <- as.numeric(difftime(
+  as.Date(meta$Collection.Date[match(names, meta$case)]),
+  as.Date("2020-01-01"),
+  units = "days"
+))
+
+new_h <- c()
+for (i in 1:length(facs)) {
+  choices <- which(dats <= dats[i] & dats >= dats[i] - 10 & lins == lins[i])
+  choices <- setdiff(choices, i)
+  if(length(choices) == 1){
+    new_h[i] <-choices
+  }else if(length(choices) > 1){
+    new_h[i] <- sample(choices, 1)
+  }else{
+    new_h[i] <- NA
+  }
+}
+
+mean(facs == facs[new_h], na.rm = T)
+
+sum(!is.na(facs == facs[new_h]))
+
+
+
+
+
+
 
 
 # table(lineage[h[which(lineage == "22E")]])
