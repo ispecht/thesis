@@ -127,8 +127,8 @@ prior <- function(mcmc, priors = NULL){
     priors$rho <- function(x){
       x <- x*(1-0.1)/0.1
       # Unif(0,5)
-      if(0 <= x & x <= 100){
-        return(-log(100))
+      if(0 <= x & x <= 5){
+        return(-log(5))
       }else{
         return(-Inf)
       }

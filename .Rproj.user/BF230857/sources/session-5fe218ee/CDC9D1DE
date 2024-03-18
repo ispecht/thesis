@@ -1,0 +1,27 @@
+{
+    "id": "CDC9D1DE",
+    "path": "~/Desktop/thesis/local_mcmc.R",
+    "project_path": "local_mcmc.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1710702660159.0,
+    "source_on_save": false,
+    "relative_order": 12,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "20,11",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1710702664,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1710702664176,
+    "read_only": false,
+    "read_only_alternatives": []
+}

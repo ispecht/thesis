@@ -1,0 +1,27 @@
+{
+    "id": "2A27C3E0",
+    "path": "~/Desktop/thesis/global_mcmc.R",
+    "project_path": "global_mcmc.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1710702632669.0,
+    "source_on_save": false,
+    "relative_order": 11,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "20,11",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1710703091,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1710703091590,
+    "read_only": false,
+    "read_only_alternatives": []
+}
