@@ -1,0 +1,26 @@
+{
+    "id": "5D6084F0",
+    "path": "~/Desktop/thesis/global_mcmc.R",
+    "project_path": "global_mcmc.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1715198086427.0,
+    "source_on_save": false,
+    "relative_order": 5,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "29,2",
+        "scrollLine": "22"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1715802900,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1715802900586,
+    "read_only": false,
+    "read_only_alternatives": []
+}

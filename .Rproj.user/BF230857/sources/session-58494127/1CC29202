@@ -1,0 +1,26 @@
+{
+    "id": "1CC29202",
+    "path": "~/Desktop/thesis/visualization.R",
+    "project_path": "visualization.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1715198429140.0,
+    "source_on_save": false,
+    "relative_order": 6,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "47,20",
+        "scrollLine": "23"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1710702731,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1710702731,
+    "read_only": false,
+    "read_only_alternatives": []
+}
